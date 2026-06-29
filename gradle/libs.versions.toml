@@ -7,7 +7,7 @@
 #     2.58 is the only version that reads Kotlin 2.3 metadata AND runs on AGP 8.x — keep it pinned.
 #   • Room 2.7+ is required for KSP2 / Kotlin 2.3.
 # Going past this (Hilt 2.59 / AGP 9 / Gradle 9) is a separate, larger migration.
-agp = "8.13.2"
+agp = "9.2.1"
 kotlin = "2.3.21"
 ksp = "2.3.9"
 coreKtx = "1.15.0"
