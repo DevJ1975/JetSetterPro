@@ -12,6 +12,8 @@
 API_FLIGHTAWARE=YOUR_FLIGHTAWARE_KEY
 
 # ── IRIS assistant (Anthropic Claude) ──────────────────────
+# Cloud tier for IRIS. NOTE: on Android IRIS currently runs on Firebase AI Logic (Gemini); the
+# Claude cloud tier is being (re)introduced in Phase B per the parity spec. Leave blank until then.
 API_ANTHROPIC=YOUR_ANTHROPIC_KEY
 
 # ── Receipt OCR ────────────────────────────────────────────
@@ -40,7 +42,16 @@ API_NATIONAL=YOUR_NATIONAL_KEY
 # ── Maps (Flight Tracker overlay — needs "Maps SDK for Android" enabled) ───
 MAPS_API_KEY=YOUR_GOOGLE_MAPS_KEY
 
-# ── Cloud sync (Firebase REST) ─────────────────────────────
+# ── Cloud sync (Supabase — shared backend with iOS) ────────
+# The cross-device data + auth backend (trips/expenses tables, anonymous Auth, RLS). When either
+# is blank the app runs on local Room data only (see core/di/SupabaseModule.kt). Schema lives in
+# supabase/migrations/0001_init_trips_expenses.sql.
+SUPABASE_URL=YOUR_SUPABASE_URL
+SUPABASE_ANON_KEY=YOUR_SUPABASE_PUBLISHABLE_ANON_KEY
+
+# ── Legacy Firebase REST (retired) ─────────────────────────
+# Firestore sync was replaced by Supabase; these are no longer read by any code. Kept only so old
+# local.properties files don't break the build. Safe to delete.
 API_FIREBASE_PROJECT_ID=YOUR_FIREBASE_PROJECT_ID
 API_FIREBASE_API_KEY=YOUR_FIREBASE_API_KEY
 

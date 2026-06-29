@@ -152,11 +152,13 @@ dependencies {
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
 
-    // Supabase — shared backend with the iOS app (Postgrest + Auth). The BoM aligns the
-    // module versions; ktor-client-okhttp is the HTTP engine supabase-kt runs on.
+    // Supabase — shared backend with the iOS app (Postgrest + Auth + Realtime). The BoM aligns
+    // the module versions; ktor-client-okhttp is the HTTP engine supabase-kt runs on. This is now
+    // the cross-device data + auth layer (trips sync, anonymous sign-in); Firestore was retired.
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.auth)
+    implementation(libs.supabase.realtime)
     implementation(libs.ktor.client.okhttp)
 
     // Async, images, background work
@@ -170,9 +172,10 @@ dependencies {
     implementation(libs.maps.compose)
     implementation(libs.play.services.maps)
 
-    // Firebase (BoM-managed — versions come from the BoM platform, so artifacts are versionless)
+    // Firebase (BoM-managed — versions come from the BoM platform, so artifacts are versionless).
+    // Only Firebase AI Logic (Gemini) remains, powering the IRIS assistant. Firestore was retired
+    // in favor of Supabase; firebase-auth is kept as it backs Firebase AI Logic's app credentials.
     implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
-    implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-ai")
 

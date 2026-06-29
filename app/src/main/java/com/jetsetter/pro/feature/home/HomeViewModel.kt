@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jetsetter.pro.core.data.mock.MockData
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.data.repository.ExpenseRepository
 import com.jetsetter.pro.core.data.repository.TripRepository
 import com.jetsetter.pro.core.model.Expense
-import com.jetsetter.pro.feature.expenses.ExpensesRepository
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -21,12 +21,14 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     tripRepository: TripRepository,
-    expensesRepository: ExpensesRepository,
+    expensesRepository: ExpenseRepository,
     private val stateStore: ModuleStateStore,
 ) : ViewModel() {
 
     init {
+        // Kick off cross-device sync for both ledgers (idempotent; shares the one anon sign-in).
         viewModelScope.launch { tripRepository.initSync() }
+        viewModelScope.launch { expensesRepository.initSync() }
     }
 
     // Persist the set of dismissed alert ids as a JSON List<String> so a tester's dismissals

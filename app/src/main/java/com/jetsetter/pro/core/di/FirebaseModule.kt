@@ -5,10 +5,6 @@ import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.content
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.firestore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,20 +12,14 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * Provides the Firebase singletons. FirebaseApp auto-initializes via the google-services
- * plugin (FirebaseInitProvider) before the Hilt graph is built, so no manual init is needed.
+ * Provides the Firebase singletons that remain in use. Cross-device data sync and auth moved to
+ * Supabase (see [SupabaseModule] / [com.jetsetter.pro.core.auth.AuthRepository]); the only thing
+ * left on Firebase is the IRIS assistant model via Firebase AI Logic. FirebaseApp auto-initializes
+ * via the google-services plugin (FirebaseInitProvider) before the Hilt graph is built.
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object FirebaseModule {
-
-    @Provides
-    @Singleton
-    fun provideFirebaseAuth(): FirebaseAuth = Firebase.auth
-
-    @Provides
-    @Singleton
-    fun provideFirestore(): FirebaseFirestore = Firebase.firestore
 
     /**
      * The IRIS assistant model. Uses Firebase AI Logic's Gemini Developer API backend

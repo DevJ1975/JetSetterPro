@@ -2,6 +2,7 @@ package com.jetsetter.pro.core.di
 
 import android.content.Context
 import androidx.room.Room
+import com.jetsetter.pro.core.data.local.ExpenseDao
 import com.jetsetter.pro.core.data.local.JetSetterDatabase
 import com.jetsetter.pro.core.data.local.TripDao
 import dagger.Module
@@ -24,4 +25,7 @@ object DatabaseModule {
 
     @Provides
     fun provideTripDao(db: JetSetterDatabase): TripDao = db.tripDao()
+
+    @Provides
+    fun provideExpenseDao(db: JetSetterDatabase): ExpenseDao = db.expenseDao()
 }

@@ -2,6 +2,7 @@ package com.jetsetter.pro.feature.expenses
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jetsetter.pro.core.data.repository.ExpenseRepository
 import com.jetsetter.pro.core.model.Expense
 import com.jetsetter.pro.core.model.ExpenseCategory
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,17 +17,17 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ExpensesViewModel @Inject constructor(
-    private val repository: ExpensesRepository,
+    private val repository: ExpenseRepository,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(ExpensesUiState(isLoading = true))
     val ui: StateFlow<ExpensesUiState> = _ui.asStateFlow()
 
     init {
-        // Seed before collecting so the empty state doesn't flash on first run, then fold the
-        // repository Flow into UI state — the canonical guide §6 collect pattern.
+        // Sign in + reconcile with Supabase (seeds locally first so the empty state doesn't flash),
+        // then fold the repository Flow into UI state — the canonical guide §6 collect pattern.
         viewModelScope.launch {
-            repository.seedIfEmpty()
+            repository.initSync()
             repository.observeExpenses()
                 .catch { e -> _ui.update { it.copy(isLoading = false, errorMessage = e.message) } }
                 .collect { list -> _ui.update { it.copy(expenses = list, isLoading = false) } }
