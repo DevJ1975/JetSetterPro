@@ -22,6 +22,11 @@ room = "2.7.2"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 moshi = "1.15.1"
+# Supabase — shared backend with the iOS app. supabase-kt 3.1.4 pins ktor-client-core 3.1.2,
+# so the OkHttp engine must match that version. Brings Ktor 3 + kotlinx.serialization in
+# alongside the existing Retrofit/OkHttp/Moshi stack; they coexist — nothing here replaces Firebase.
+supabase = "3.1.4"
+ktor = "3.1.2"
 coroutines = "1.9.0"
 datastore = "1.1.1"
 coil = "2.7.0"
@@ -60,6 +65,12 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }
 moshi-kotlin = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshi" }
+# Supabase BoM governs the versions of the module artifacts below (postgrest-kt, auth-kt),
+# so those are declared versionless. ktor-client-okhttp is the HTTP engine supabase-kt runs on.
+supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version.ref = "supabase" }
+supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt" }
+supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
+ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
@@ -77,5 +88,7 @@ androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-man
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+# Required by supabase-kt: @Serializable models are (de)serialized via kotlinx.serialization.
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }

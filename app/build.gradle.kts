@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     id("com.google.gms.google-services")
@@ -32,6 +33,8 @@ val secretKeys = listOf(
     "API_EXPENSIFY_PARTNER_KEY", "API_RAMP_CLIENT_ID", "API_RAMP_CLIENT_SECRET",
     "API_BREX_CLIENT_ID", "API_DIVVY_CLIENT_ID",
     "MAPS_API_KEY",
+    // Supabase — shared backend with the iOS app. URL + publishable ("anon") key.
+    "SUPABASE_URL", "SUPABASE_ANON_KEY",
 )
 
 // ── Release signing ──────────────────────────────────────────────────────────
@@ -148,6 +151,13 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
+
+    // Supabase — shared backend with the iOS app (Postgrest + Auth). The BoM aligns the
+    // module versions; ktor-client-okhttp is the HTTP engine supabase-kt runs on.
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.auth)
+    implementation(libs.ktor.client.okhttp)
 
     // Async, images, background work
     implementation(libs.kotlinx.coroutines.android)

@@ -20,6 +20,10 @@ object Secrets {
     val sitaWorldTracer: String get() = BuildConfig.API_SITA_WORLDTRACER
     val mapsApiKey: String get() = BuildConfig.MAPS_API_KEY
 
+    /** Supabase — the shared backend the iOS app also uses. */
+    val supabaseUrl: String get() = BuildConfig.SUPABASE_URL
+    val supabaseAnonKey: String get() = BuildConfig.SUPABASE_ANON_KEY
+
     /** True when [value] is a real, usable key (non-blank and not a placeholder). */
     fun isConfigured(value: String): Boolean {
         val v = value.trim()
