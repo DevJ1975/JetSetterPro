@@ -62,12 +62,13 @@ Canonical DDL: **`supabase/migrations/0001_init_trips_expenses.sql`**. Tables li
 - RLS keys off `auth.uid()` = the Supabase user id; every row carries `user_id` and is only visible to its owner (anonymous users included).
 - **iOS action:** use the same Supabase anonymous-first model so the `auth.uid()` namespace matches and an upgraded account links rather than forks. Requires **Anonymous Sign-Ins** enabled in the Supabase project.
 
-## 4. IRIS assistant — provider divergence (functional parity, different backend)
+## 4. IRIS assistant — now provider-aligned (Claude on both platforms)
 
-- **Android:** IRIS runs on **Firebase AI Logic (Gemini)**, `googleAI()` backend (free tier), model `gemini-2.5-flash`, with a canned demo fallback. (Anthropic Claude is no longer used on Android.)
-- **iOS:** still Apple Intelligence → Claude → demo.
-- **Parity rule:** keep the **system prompt, tone, and the demo/canned replies word-for-word identical** across platforms so IRIS *behaves* the same. The Android system prompt + demo replies live in `core.di.FirebaseModule` and `core.data.repository.IrisRepository`. If we want true provider parity (same model both sides), that's a product decision — record it here first.
-- **Roles:** Gemini uses `user` / `model`; history must start with a `user` turn (the opening greeting is dropped before sending). iOS's provider has its own role names — just keep the conversation content identical.
+- **Android:** IRIS streams from **Anthropic Claude**, model **`claude-sonnet-4-6`**, `POST /v1/messages` with `stream: true`, `max_tokens: 1024` (`core.ai.ClaudeClient`). Tiering mirrors iOS: on-device **Gemini Nano** (Phase C — ML Kit GenAI / AICore, not yet wired) → Claude → canned demo. Live when `API_ANTHROPIC` is set; otherwise the demo fallback answers. **Firebase AI Logic / Gemini is retired — Firebase is no longer used by Android at all.**
+- **iOS:** Apple Intelligence (on-device) → Claude → demo. Same Claude model id — keep it in sync.
+- **Parity rule:** keep the **system prompt, tone, and demo/canned replies word-for-word identical** across platforms. They live in `core.ai.IrisPersona` (`SYSTEM_PROMPT` + `demoResponse`). One wording change from the old Gemini build: the "no AI configured" hint now reads *"Add your Anthropic API key to turn on live AI."* — match it on iOS.
+- **Privacy:** only the conversation + the static `SYSTEM_PROMPT` are sent to Claude. The on-device learned profile (Phase F) must **never** be put in the request.
+- **Roles:** the app stores turns as `user`/`model` (`core.ai.AiMessage`); the Claude path maps `model → assistant` and drops any leading assistant turn so the request starts with `user`. Keep conversation content identical across platforms.
 
 ## 5. Design system (already aligned — keep it that way)
 

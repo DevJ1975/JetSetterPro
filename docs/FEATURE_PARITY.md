@@ -31,7 +31,7 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 |---|---|---|---|---|---|---|---|
 | 1 | **Home** | `Features/Home/` | Dashboard: next trip, live flight, quick actions, alerts | `feature.home` | HomeViewModel aggregates Trip/Flight/Wallet repos; FlightAware | P0 | ✅ |
 | 2 | **Itinerary** | `Features/Itinerary/` (+`PackingList/`) | Trip list & detail; add/edit items; packing list; share text | `feature.itinerary` | Room (Trip/ItineraryItem/PackingItem), CalendarService, Supabase sync | P0 | ✅ |
-| 3 | **IRIS Chat** | `Features/IRIS/` | AI travel assistant chat + memory + suggestion cards | `feature.iris` | Firebase AI Logic (Gemini, `googleAI()` backend) + demo fallback. iOS uses Claude/Apple — see `IOS_PARITY_NOTES.md` | P0 | ✅ |
+| 3 | **IRIS Chat** | `Features/IRIS/` | AI travel assistant chat + memory + suggestion cards | `feature.iris` | Anthropic Claude (`claude-sonnet-4-6`, streaming SSE) + demo fallback; on-device Nano = Phase C. See `IOS_PARITY_NOTES.md` §4 | P0 | ✅ |
 | 4 | **Expenses (ExpenseTracker)** | `Features/ExpenseTracker/` | Expense list, manual entry, receipt scan, mileage (IRS rate) | `feature.expenses` | Room (Expense) + Supabase sync ✅, VisionOCRService → Google Vision (OCR pending) | P0 | 🟡 |
 | 5 | **More / Settings** | `Features/More/` (+`Settings/`) | Settings hub, profile, preferences, feature index, sign-out | `feature.more` | DataStore (UserPreferences), FirebaseService (auth) | P0 | 🟡 |
 | 6 | **FlightTracker** | `Features/FlightTracker/` | Live flight status by ident; gates, delays, progress | `feature.flighttracker` | FlightAware AeroAPI; APIClient | P1 | ⬜ |
@@ -75,10 +75,10 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 - **✅ wired:** Home, Itinerary, **Onboarding** (first-run gate via DataStore +
   splash hold; `feature.onboarding`)
 - **🟡 partially wired / stubbed:**
-  - **IRIS Chat** — live Gemini via Firebase AI Logic (`googleAI()` backend, non-streaming) +
-    demo fallback; streaming + suggestion cards pending. Requires AI Logic enabled in the
-    Firebase console (until then, demo replies). iOS still uses Claude/Apple — keep prompt +
-    demo replies identical (`IOS_PARITY_NOTES.md`).
+  - **IRIS Chat** — live **Claude `claude-sonnet-4-6` streaming** (`core.ai.ClaudeClient`) + demo
+    fallback; tokens render live into the chat bubble. Needs `API_ANTHROPIC` set (else demo
+    replies). On-device Nano tier + dynamic suggestion cards pending (Phases C/F). Keep prompt +
+    demo replies identical to iOS (`IOS_PARITY_NOTES.md` §4).
   - **More/Settings** — appearance (theme) + profile persist via DataStore; now also hosts the
     **Features menu** (`ui/navigation/FeatureCatalog.kt`) that routes to every module below.
     Account/auth UI still pending.
@@ -128,7 +128,7 @@ behind interfaces so ViewModels stay testable.
 |---|---|---|
 | `APIClient` / `Endpoints` | `core.network` (Retrofit + OkHttp + Moshi) | See APIClient/error model in `API_REFERENCE.md` |
 | `AppSecrets` | `core.secrets.Secrets` | Reads `BuildConfig` fields; empty ⇒ Mock |
-| `AIService` | `core.data.repository.IrisRepository` (+ `core.di.FirebaseModule`) | **Firebase AI Logic (Gemini)**, `googleAI()` backend; system prompt/model configured in DI; demo fallback inline. (Anthropic Claude no longer used on Android.) |
+| `AIService` | `core.data.repository.IrisRepository` (+ `core.ai.ClaudeClient`, `core.ai.IrisPersona`) | **Anthropic Claude** (`claude-sonnet-4-6`, streaming `/v1/messages`); persona in `IrisPersona`; demo fallback. On-device Nano tier = Phase C. |
 | `FirebaseService` | `core.auth.AuthRepository` (Supabase Auth) + `core.sync.SupabaseTripSync` (Postgrest + Realtime) | **Supabase** is the shared data + auth backend (Firestore retired). Anonymous sign-in; trips sync to `public.trips` (RLS on `auth.uid()`). Schema: `supabase/migrations/` + `IOS_PARITY_NOTES.md` §2. |
 | `MockDataService` / `DemoSeeder` | `core.data.mock.MockData` | Sample data parity with iOS `*.sample` |
 | `VaultCrypto` | `core.crypto.VaultCrypto` | Tink (AES-GCM) + Android Keystore; EncryptedSharedPreferences |

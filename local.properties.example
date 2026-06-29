@@ -12,8 +12,8 @@
 API_FLIGHTAWARE=YOUR_FLIGHTAWARE_KEY
 
 # ── IRIS assistant (Anthropic Claude) ──────────────────────
-# Cloud tier for IRIS. NOTE: on Android IRIS currently runs on Firebase AI Logic (Gemini); the
-# Claude cloud tier is being (re)introduced in Phase B per the parity spec. Leave blank until then.
+# Cloud tier for IRIS (claude-sonnet-4-6, streaming). When set, IRIS streams live from Claude;
+# when blank it falls back to canned demo replies (see core/ai/IrisRepository + IrisPersona).
 API_ANTHROPIC=YOUR_ANTHROPIC_KEY
 
 # ── Receipt OCR ────────────────────────────────────────────

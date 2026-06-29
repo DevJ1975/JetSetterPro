@@ -1,49 +1,62 @@
 package com.jetsetter.pro.core.data.repository
 
-import com.google.firebase.ai.GenerativeModel
-import com.google.firebase.ai.type.content
 import com.jetsetter.pro.core.ai.AiMessage
+import com.jetsetter.pro.core.ai.ClaudeClient
+import com.jetsetter.pro.core.ai.ClaudeMessage
+import com.jetsetter.pro.core.ai.IrisPersona
+import com.jetsetter.pro.core.secrets.Secrets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Backs the IRIS assistant (Intelligent Routing & Itinerary Specialist).
  *
- * On iOS, IRIS routed Apple Intelligence (on-device) → Claude → canned demo. On Android it
- * runs on **Firebase AI Logic** (Gemini, via the no-cost Google AI backend; model + system
- * prompt are configured in [com.jetsetter.pro.core.di.FirebaseModule]). If the live call fails
- * — e.g. Firebase AI Logic isn't enabled yet, or there's no network — it falls back to canned
- * demo replies so the IRIS tab always responds.
+ * Tiering mirrors iOS: on-device (Phase C — Gemini Nano via ML Kit, not yet wired) → **Anthropic
+ * Claude** (`claude-sonnet-4-6`, streaming) → canned demo. The cloud tier streams when the
+ * `API_ANTHROPIC` key is configured; otherwise (or if the request fails before any token arrives)
+ * it falls back to [IrisPersona.demoResponse] so the IRIS tab always answers.
  */
 @Singleton
 class IrisRepository @Inject constructor(
-    private val model: GenerativeModel,
+    private val claude: ClaudeClient,
 ) {
-    /** [history] is the full conversation; the last entry should be the new user message. */
-    suspend fun ask(history: List<AiMessage>): String {
-        val last = history.lastOrNull() ?: return demoResponse("")
-        // Gemini requires the chat history to start with a user turn, so drop any leading
-        // assistant turns (e.g. IRIS's opening greeting) before the first user message.
-        val prior = history.dropLast(1).dropWhile { it.role != "user" }
-        return runCatching {
-            val chat = model.startChat(
-                history = prior.map { turn -> content(role = turn.role) { text(turn.text) } },
-            )
-            chat.sendMessage(last.text).text?.takeIf { it.isNotBlank() } ?: demoResponse(last.text)
-        }.getOrElse { demoResponse(last.text) }
-    }
+    /**
+     * Streams IRIS's reply token-by-token. [history] is the full conversation; the last entry is
+     * the new user message. Roles map from the app's Gemini-style convention ("user"/"model") to
+     * Anthropic's ("user"/"assistant"), and any leading assistant turn (IRIS's opening greeting)
+     * is dropped so the request starts with a `user` turn as the API requires.
+     */
+    fun stream(history: List<AiMessage>): Flow<String> = flow {
+        val lastUserText = history.lastOrNull { it.role == "user" }?.text.orEmpty()
 
-    private fun demoResponse(prompt: String): String = when {
-        prompt.contains("delay", ignoreCase = true) ->
-            "I'm watching DL 1423 to Atlanta — on time right now. I'll ping you the instant the gate or status changes."
-        prompt.contains("pack", ignoreCase = true) ->
-            "For your 3-day Atlanta trip: a suit, the printed board deck, laptop + charger, and your passport. Want a weather-based layer suggestion?"
-        prompt.contains("expense", ignoreCase = true) ->
-            "You're at \$1,812.75 across 4 items this trip. The Delta airfare (\$1,290) is the largest. Shall I export to Brex?"
-        prompt.isBlank() ->
-            "I'm IRIS, your travel concierge. Ask me about your flights, itinerary, packing, or expenses."
-        else ->
-            "I'm IRIS, your travel concierge. (Enable Firebase AI Logic for the project to turn on live AI.) " +
-                "Meanwhile: your next flight is DL 1423 LAS→ATL, on time, gate C22."
-    }
+        val key = Secrets.anthropic
+        if (!Secrets.isConfigured(key)) {
+            emit(IrisPersona.demoResponse(lastUserText))
+            return@flow
+        }
+
+        val messages = history
+            .dropWhile { it.role != "user" }
+            .map { ClaudeMessage(role = if (it.role == "model") "assistant" else "user", text = it.text) }
+        if (messages.isEmpty()) {
+            emit(IrisPersona.demoResponse(lastUserText))
+            return@flow
+        }
+
+        var streamedAny = false
+        runCatching {
+            claude.streamMessage(key, IrisPersona.SYSTEM_PROMPT, messages).collect { delta ->
+                streamedAny = true
+                emit(delta)
+            }
+        }.onFailure {
+            // Only substitute a demo reply if nothing streamed yet; a mid-stream drop keeps the
+            // partial answer rather than discarding it.
+            if (!streamedAny) emit(IrisPersona.demoResponse(lastUserText))
+        }
+    }.flowOn(Dispatchers.IO)
 }

@@ -12,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -50,10 +51,23 @@ class IrisChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             val aiHistory = history.map { AiMessage(if (it.fromUser) "user" else "model", it.text) }
-            val reply = irisRepository.ask(aiHistory)
-            val updated = _ui.value.messages + ChatMessage(reply, fromUser = false)
-            _ui.update { it.copy(messages = updated, isThinking = false) }
-            runCatching { moduleStateStore.save(KEY, messagesAdapter.toJson(updated)) }
+
+            // Append an empty assistant bubble, then stream tokens into it as they arrive.
+            _ui.update { it.copy(messages = it.messages + ChatMessage("", fromUser = false)) }
+            val reply = StringBuilder()
+            irisRepository.stream(aiHistory)
+                .catch { /* keep whatever streamed; the bubble simply stops growing */ }
+                .collect { delta ->
+                    reply.append(delta)
+                    _ui.update { state ->
+                        val messages = state.messages.toMutableList()
+                        messages[messages.lastIndex] = ChatMessage(reply.toString(), fromUser = false)
+                        state.copy(messages = messages)
+                    }
+                }
+
+            _ui.update { it.copy(isThinking = false) }
+            runCatching { moduleStateStore.save(KEY, messagesAdapter.toJson(_ui.value.messages)) }
         }
     }
 
