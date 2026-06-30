@@ -14,8 +14,6 @@ object Secrets {
     val flightAware: String get() = BuildConfig.API_FLIGHTAWARE
     val anthropic: String get() = BuildConfig.API_ANTHROPIC
     val googleVision: String get() = BuildConfig.API_GOOGLE_VISION
-    val firebaseProjectId: String get() = BuildConfig.API_FIREBASE_PROJECT_ID
-    val firebaseApiKey: String get() = BuildConfig.API_FIREBASE_API_KEY
     val uberServerToken: String get() = BuildConfig.API_UBER_SERVER_TOKEN
     val sitaWorldTracer: String get() = BuildConfig.API_SITA_WORLDTRACER
     val mapsApiKey: String get() = BuildConfig.MAPS_API_KEY

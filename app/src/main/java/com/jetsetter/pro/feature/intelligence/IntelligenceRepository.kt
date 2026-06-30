@@ -1,117 +1,169 @@
 package com.jetsetter.pro.feature.intelligence
 
+import com.jetsetter.pro.core.data.repository.ExpenseRepository
+import com.jetsetter.pro.core.data.repository.TripRepository
+import com.jetsetter.pro.core.model.Expense
+import com.jetsetter.pro.core.model.Trip
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 /**
- * In-memory source of truth for Travel Intelligence insights. Mock-first: no network, no
- * persistence — just realistic sample data the beta tester can interact with. Dismissing or
- * restoring an insight mutates the backing [MutableStateFlow] so the UI updates reactively.
+ * Derives the Travel Intelligence feed from the **live** trip and expense ledgers — no mock data.
+ * Insights are recomputed reactively whenever trips or expenses change (the same offline-first Room
+ * data that drives Home and Expenses). Every figure a card shows is computed here from the raw
+ * inputs (carried in a structured [InsightMetric] where one applies), never baked into prose.
  *
- * Numbers live in structured [InsightMetric]s, not in the prose, so every figure the UI shows is
- * computed from these inputs and stays self-consistent.
+ * Dismiss/restore is handled by [IntelligenceViewModel] as an overlay of persisted ids on top of
+ * this derived set; insight ids are **stable** (keyed by trip id / merchant) so a dismissal sticks
+ * across re-derivations. This stays a @Singleton with no mutable state so Hilt injects it like the
+ * rest of the graph.
  */
 @Singleton
-class IntelligenceRepository @Inject constructor() {
-
-    private val _insights = MutableStateFlow(sampleInsights())
-    fun observeInsights(): Flow<List<TravelIntelligenceItem>> = _insights.asStateFlow()
-
-    /** Move an insight into / out of the dismissed-history bucket. */
-    fun setDismissed(id: String, dismissed: Boolean) {
-        _insights.update { list ->
-            list.map { if (it.id == id) it.copy(dismissed = dismissed) else it }
+class IntelligenceRepository @Inject constructor(
+    private val tripRepository: TripRepository,
+    private val expenseRepository: ExpenseRepository,
+) {
+    /** The current active insight set (before the dismissal overlay), derived from live data. */
+    fun observeInsights(): Flow<List<TravelIntelligenceItem>> =
+        combine(tripRepository.observeTrips(), expenseRepository.observeExpenses()) { trips, expenses ->
+            deriveInsights(trips, expenses)
         }
+
+    private fun deriveInsights(
+        trips: List<Trip>,
+        expenses: List<Expense>,
+        today: LocalDate = LocalDate.now(),
+    ): List<TravelIntelligenceItem> {
+        val items = mutableListOf<TravelIntelligenceItem>()
+
+        // ── Trip-derived ────────────────────────────────────────────────────────────────────
+        val nextTrip = trips
+            .mapNotNull { trip -> parseDate(trip.startDate)?.let { trip to it } }
+            .filter { (_, start) -> !start.isBefore(today) }
+            .minByOrNull { (_, start) -> start }
+
+        if (nextTrip != null) {
+            val (trip, start) = nextTrip
+            val days = ChronoUnit.DAYS.between(today, start)
+            items += TravelIntelligenceItem(
+                id = "trip-${trip.id}",
+                category = IntelligenceCategory.FLIGHT,
+                priority = if (days <= 7) IntelligencePriority.ALERT else IntelligencePriority.INFO,
+                severity = when {
+                    days <= 3 -> IntelligenceSeverity.HIGH
+                    days <= 7 -> IntelligenceSeverity.MEDIUM
+                    else -> IntelligenceSeverity.LOW
+                },
+                title = "${trip.destination} ${whenPhrase(days)}",
+                detail = "${trip.name}: ${trip.startDate} → ${trip.endDate}. IRIS can prep the itinerary " +
+                    "and watch for gate changes and weather.",
+                actionLabel = "Prep itinerary",
+            )
+
+            val unpacked = trip.packingList.count { !it.isPacked }
+            if (trip.packingList.isNotEmpty() && unpacked > 0 && days <= 14) {
+                items += TravelIntelligenceItem(
+                    id = "packing-${trip.id}",
+                    category = IntelligenceCategory.FLIGHT,
+                    priority = if (days <= 3) IntelligencePriority.ALERT else IntelligencePriority.INFO,
+                    severity = if (days <= 3) IntelligenceSeverity.HIGH else IntelligenceSeverity.MEDIUM,
+                    title = "$unpacked of ${trip.packingList.size} items still to pack",
+                    detail = "Your ${trip.destination} packing list is " +
+                        "${trip.packingList.size - unpacked}/${trip.packingList.size} done.",
+                    actionLabel = "Open packing",
+                )
+            }
+        }
+
+        // ── Expense-derived ─────────────────────────────────────────────────────────────────
+        if (expenses.isNotEmpty()) {
+            val currency = expenses.first().currency
+            val total = expenses.sumOf { it.amount }
+            val topCategory = expenses.groupBy { it.category }
+                .mapValues { (_, v) -> v.sumOf { it.amount } }
+                .maxByOrNull { it.value }
+
+            items += TravelIntelligenceItem(
+                id = "spend-total",
+                category = IntelligenceCategory.EXPENSE,
+                priority = IntelligencePriority.INFO,
+                severity = IntelligenceSeverity.LOW,
+                title = "Trip spend: ${money(total, currency)}",
+                detail = buildString {
+                    append("Across ${expenses.size} item${if (expenses.size == 1) "" else "s"}")
+                    topCategory?.let { append(" — ${it.key.label} is the largest at ${money(it.value, currency)}") }
+                    append(".")
+                },
+                actionLabel = "View expenses",
+            )
+
+            val topMerchant = expenses.groupBy { it.merchant }
+                .mapValues { (_, v) -> v.sumOf { it.amount } }
+                .maxByOrNull { it.value }
+            if (topMerchant != null && topMerchant.value > 0.0) {
+                items += TravelIntelligenceItem(
+                    id = "export-${topMerchant.key}",
+                    category = IntelligenceCategory.EXPENSE,
+                    priority = IntelligencePriority.OPPORTUNITY,
+                    severity = IntelligenceSeverity.MEDIUM,
+                    title = "Export ${topMerchant.key} to Brex",
+                    detail = "${topMerchant.key} is your largest single expense at " +
+                        "${money(topMerchant.value, currency)} — export it for reimbursement.",
+                    actionLabel = "Export",
+                )
+            }
+
+            val missing = expenses.filter { it.notes.isNullOrBlank() }
+            if (missing.isNotEmpty()) {
+                items += TravelIntelligenceItem(
+                    id = "receipts-outstanding",
+                    category = IntelligenceCategory.EXPENSE,
+                    priority = IntelligencePriority.ALERT,
+                    severity = if (missing.size >= 3) IntelligenceSeverity.HIGH else IntelligenceSeverity.MEDIUM,
+                    title = "${missing.size} expense${if (missing.size == 1) "" else "s"} need receipts",
+                    detail = "Attach receipts before your reporting window closes so nothing is rejected.",
+                    actionLabel = "Attach receipts",
+                    metric = InsightMetric.Outstanding(amountsCents = missing.map { (it.amount * 100).roundToInt() }),
+                )
+            }
+        }
+
+        if (items.isEmpty()) {
+            items += TravelIntelligenceItem(
+                id = "empty",
+                category = IntelligenceCategory.FLIGHT,
+                priority = IntelligencePriority.INFO,
+                severity = IntelligenceSeverity.LOW,
+                title = "No active insights yet",
+                detail = "Add a trip or log an expense and IRIS will start surfacing proactive insights here.",
+                actionLabel = "Add a trip",
+            )
+        }
+        return items
     }
 
-    /**
-     * Reconcile every insight's dismissed flag to match the persisted set of ids: ids in [ids]
-     * become dismissed, all others active. Used on launch to restore the tester's saved choices
-     * (including ones they later restored) on top of the seed data.
-     */
-    fun applyDismissed(ids: Set<String>) {
-        _insights.update { list -> list.map { it.copy(dismissed = it.id in ids) } }
+    private fun whenPhrase(days: Long): String = when (days) {
+        0L -> "trip is today"
+        1L -> "trip is tomorrow"
+        else -> "trip is in $days days"
     }
 
-    /** Current ids in the dismissed-history bucket — snapshot used to persist after each change. */
-    fun dismissedIds(): List<String> = _insights.value.filter { it.dismissed }.map { it.id }
+    private fun parseDate(iso: String): LocalDate? =
+        runCatching { LocalDate.parse(iso.take(10)) }.getOrNull()
 
-    private fun sampleInsights(): List<TravelIntelligenceItem> = listOf(
-        TravelIntelligenceItem(
-            id = "weather-atl",
-            category = IntelligenceCategory.WEATHER,
-            priority = IntelligencePriority.ALERT,
-            severity = IntelligenceSeverity.HIGH,
-            title = "ATL flight may be delayed",
-            detail = "2 hours of rain are forecast at Atlanta around your 9:40a arrival. DL 1423 has a " +
-                "tight C22 connection — an earlier departure protects it.",
-            actionLabel = "See alternates",
-        ),
-        TravelIntelligenceItem(
-            id = "tsa-las",
-            category = IntelligenceCategory.SECURITY,
-            priority = IntelligencePriority.ALERT,
-            severity = IntelligenceSeverity.HIGH,
-            title = "TSA wait rising at LAS",
-            detail = "Security at Harry Reid Terminal 1 is climbing. Leave by 6:05a to stay ahead of it.",
-            actionLabel = "Set reminder",
-            metric = InsightMetric.Wait(currentMinutes = 32, bufferMinutes = 30),
-        ),
-        TravelIntelligenceItem(
-            id = "hotel-savings",
-            category = IntelligenceCategory.HOTEL,
-            priority = IntelligencePriority.OPPORTUNITY,
-            severity = IntelligenceSeverity.MEDIUM,
-            title = "Cheaper hotel found near the venue",
-            detail = "The Loews Atlanta is 0.3 mi from your board meeting and fully refundable.",
-            actionLabel = "View hotel",
-            metric = InsightMetric.CostSaving(currentCents = 31_000, proposedCents = 21_400, cadence = "night"),
-        ),
-        TravelIntelligenceItem(
-            id = "expense-policy",
-            category = IntelligenceCategory.EXPENSE,
-            priority = IntelligencePriority.INFO,
-            severity = IntelligenceSeverity.MEDIUM,
-            title = "Receipts missing for this trip",
-            detail = "Your Delta airfare and an airport lunch don't have receipts attached. Add them " +
-                "before Friday to stay inside the Brex reporting window.",
-            actionLabel = "Attach receipts",
-            metric = InsightMetric.Outstanding(amountsCents = listOf(129_000, 5_800)),
-        ),
-        TravelIntelligenceItem(
-            id = "flight-upgrade",
-            category = IntelligenceCategory.FLIGHT,
-            priority = IntelligencePriority.OPPORTUNITY,
-            severity = IntelligenceSeverity.LOW,
-            title = "First-class upgrade available",
-            detail = "Seat 2C just opened on DL 1423 — a 4h 45m flight in lie-flat comfort.",
-            actionLabel = "Upgrade",
-            metric = InsightMetric.PointsCost(costPoints = 14_500, balancePoints = 41_200),
-        ),
-        // Pre-seeded history so the dismissed section isn't empty on first launch.
-        TravelIntelligenceItem(
-            id = "weather-cleared",
-            category = IntelligenceCategory.WEATHER,
-            priority = IntelligencePriority.INFO,
-            severity = IntelligenceSeverity.LOW,
-            title = "Pack a light layer for Atlanta",
-            detail = "Evenings dip to 61°F during your stay — a blazer or light jacket should cover it.",
-            actionLabel = "Add to packing",
-            dismissed = true,
-        ),
-        TravelIntelligenceItem(
-            id = "lounge-cleared",
-            category = IntelligenceCategory.SECURITY,
-            priority = IntelligencePriority.OPPORTUNITY,
-            severity = IntelligenceSeverity.LOW,
-            title = "Sky Club near your gate",
-            detail = "Delta Sky Club is a 3-minute walk from C22 and is included with your membership.",
-            actionLabel = "Get directions",
-            dismissed = true,
-        ),
-    )
+    private fun money(amount: Double, currency: String): String {
+        val symbol = when (currency.uppercase()) {
+            "USD" -> "$"
+            "EUR" -> "€"
+            "GBP" -> "£"
+            else -> ""
+        }
+        val rounded = "%,.0f".format(amount)
+        return if (symbol.isNotEmpty()) "$symbol$rounded" else "$rounded $currency"
+    }
 }

@@ -1,7 +1,7 @@
 package com.jetsetter.pro.feature.currencytracker
 
 /**
- * A single currency in the mock FX snapshot, quoted against the app's reference currency (USD).
+ * A single currency in the bundled offline FX table, quoted against the app's reference currency (USD).
  *
  * Module-prefixed so the name can't collide with currency/rate types elsewhere in the app.
  * [ratePerUsd] is how many units of [code] one US dollar buys (USD itself is exactly `1.0`);

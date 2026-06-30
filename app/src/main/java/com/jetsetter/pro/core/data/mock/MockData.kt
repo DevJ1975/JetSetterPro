@@ -91,9 +91,19 @@ object MockData {
     )
 
     val expenses = listOf(
-        Expense(amount = 412.55, category = ExpenseCategory.ACCOMMODATION, merchant = "The Ritz-Carlton", date = "2026-07-14"),
-        Expense(amount = 86.20, category = ExpenseCategory.FOOD, merchant = "Bacchanalia", date = "2026-07-15"),
-        Expense(amount = 24.00, category = ExpenseCategory.TRANSPORT, merchant = "Uber", date = "2026-07-14"),
-        Expense(amount = 1290.00, category = ExpenseCategory.BUSINESS, merchant = "Delta Air Lines", date = "2026-07-10"),
+        Expense(id = "seed-exp-ritz", amount = 412.55, category = ExpenseCategory.ACCOMMODATION, merchant = "The Ritz-Carlton", date = "2026-07-14"),
+        Expense(id = "seed-exp-bacchanalia", amount = 86.20, category = ExpenseCategory.FOOD, merchant = "Bacchanalia", date = "2026-07-15"),
+        Expense(id = "seed-exp-uber", amount = 24.00, category = ExpenseCategory.TRANSPORT, merchant = "Uber", date = "2026-07-14"),
+        Expense(id = "seed-exp-delta", amount = 1290.00, category = ExpenseCategory.BUSINESS, merchant = "Delta Air Lines", date = "2026-07-10"),
     )
+
+    /**
+     * Ids of the demo seed rows. These are local-only first-run content and must never be pushed to
+     * the shared cloud backend — otherwise every new anonymous user reconciles the same demo rows
+     * up into the shared Supabase tables. The sync reconcile excludes these ids from its
+     * "push local-only rows up" step. Trip seed ids are already stable; expense seed ids are pinned
+     * above (they previously defaulted to random UUIDs) so the exclusion holds across launches.
+     */
+    val seedTripIds: Set<String> = trips.mapTo(HashSet()) { it.id }
+    val seedExpenseIds: Set<String> = expenses.mapTo(HashSet()) { it.id }
 }

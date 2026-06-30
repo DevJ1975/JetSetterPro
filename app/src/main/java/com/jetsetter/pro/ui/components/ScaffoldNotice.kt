@@ -24,7 +24,6 @@ import com.jetsetter.pro.ui.theme.JetTheme
 fun ScaffoldNotice(text: String, modifier: Modifier = Modifier) {
     val colors = JetTheme.colors
     val shape = RoundedCornerShape(12.dp)
-
     Row(
         modifier = modifier
             .fillMaxWidth()

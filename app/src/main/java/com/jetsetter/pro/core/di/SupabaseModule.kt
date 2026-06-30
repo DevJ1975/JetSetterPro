@@ -9,6 +9,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
 import javax.inject.Singleton
 
 /**
@@ -21,7 +22,8 @@ import javax.inject.Singleton
  * doctrine the rest of the app follows (see [Secrets.isConfigured] and FirebaseModule).
  *
  * Postgrest covers table reads/writes; Auth supplies the per-user session that RLS policies
- * key off. Add Realtime/Storage the same way when a feature needs them.
+ * key off; Realtime delivers live cross-device updates (postgres changes). Add Storage the same
+ * way when a feature needs it.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -36,6 +38,7 @@ object SupabaseModule {
         return createSupabaseClient(supabaseUrl = url, supabaseKey = key) {
             install(Postgrest)
             install(Auth)
+            install(Realtime)
         }
     }
 }
