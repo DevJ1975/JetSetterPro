@@ -49,12 +49,6 @@ MAPS_API_KEY=YOUR_GOOGLE_MAPS_KEY
 SUPABASE_URL=YOUR_SUPABASE_URL
 SUPABASE_ANON_KEY=YOUR_SUPABASE_PUBLISHABLE_ANON_KEY
 
-# ── Legacy Firebase REST (retired) ─────────────────────────
-# Firestore sync was replaced by Supabase; these are no longer read by any code. Kept only so old
-# local.properties files don't break the build. Safe to delete.
-API_FIREBASE_PROJECT_ID=YOUR_FIREBASE_PROJECT_ID
-API_FIREBASE_API_KEY=YOUR_FIREBASE_API_KEY
-
 # ── Expense export integrations ────────────────────────────
 API_EXPENSIFY_PARTNER_KEY=YOUR_EXPENSIFY_PARTNER_KEY
 API_RAMP_CLIENT_ID=YOUR_RAMP_CLIENT_ID

@@ -29,15 +29,23 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,12 +57,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jetsetter.pro.core.voice.VoiceInput
 import com.jetsetter.pro.ui.components.AccentTag
 import com.jetsetter.pro.ui.components.PremiumTextField
 import com.jetsetter.pro.ui.theme.JetSetterTheme
@@ -286,6 +297,44 @@ private fun InputBar(
 ) {
     val colors = JetTheme.colors
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+
+    // Push-to-talk: a single recognizer per InputBar, released when the bar leaves composition.
+    val voiceInput = remember { VoiceInput(context) }
+    var listening by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        onDispose { voiceInput.destroy() }
+    }
+
+    fun startListening() {
+        if (!voiceInput.isAvailable) {
+            Toast.makeText(context, "Voice input isn't available on this device", Toast.LENGTH_SHORT).show()
+            return
+        }
+        listening = true
+        voiceInput.start(
+            onResult = { phrase ->
+                listening = false
+                // Feed the recognized phrase into the same field the keyboard fills.
+                onValueChange(phrase)
+            },
+            onError = {
+                listening = false
+                Toast.makeText(context, "Didn't catch that — try again", Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            startListening()
+        } else {
+            Toast.makeText(context, "Microphone permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -297,6 +346,32 @@ private fun InputBar(
             placeholder = "Ask IRIS…",
             modifier = Modifier.weight(1f),
         )
+        IconButton(
+            onClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (listening) {
+                    listening = false
+                    voiceInput.stop()
+                    return@IconButton
+                }
+                val granted = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.RECORD_AUDIO,
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    startListening()
+                } else {
+                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+            enabled = enabled,
+        ) {
+            Icon(
+                Icons.Filled.Mic,
+                contentDescription = if (listening) "Stop listening" else "Voice input",
+                tint = if (listening) colors.accent else colors.textSecondary,
+            )
+        }
         FilledIconButton(
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)

@@ -40,7 +40,8 @@ class ExpenseRepository @Inject constructor(
     private var syncJob: Job? = null
 
     private companion object {
-        const val SEEDED_KEY = "expenses_seeded"
+        // bump the _vN suffix whenever the Room DB version changes — a destructive migration wipes the table but not this DataStore flag
+        const val SEEDED_KEY = "expenses_seeded_v2"
     }
 
     fun observeExpenses(): Flow<List<Expense>> =

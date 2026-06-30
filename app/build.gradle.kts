@@ -8,7 +8,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
-    id("com.google.gms.google-services")
 }
 
 // ── Secrets ──────────────────────────────────────────────────────────────────
@@ -29,7 +28,6 @@ val secretKeys = listOf(
     "API_SITA_WORLDTRACER", "API_UBER_SERVER_TOKEN",
     "API_LYFT_CLIENT_ID", "API_LYFT_CLIENT_SECRET",
     "API_ENTERPRISE", "API_HERTZ", "API_NATIONAL",
-    "API_FIREBASE_PROJECT_ID", "API_FIREBASE_API_KEY",
     "API_EXPENSIFY_PARTNER_KEY", "API_RAMP_CLIENT_ID", "API_RAMP_CLIENT_SECRET",
     "API_BREX_CLIENT_ID", "API_DIVVY_CLIENT_ID",
     "MAPS_API_KEY",
@@ -171,13 +169,6 @@ dependencies {
     // falls back to a Compose-drawn map otherwise.
     implementation(libs.maps.compose)
     implementation(libs.play.services.maps)
-
-    // Firebase (BoM-managed — versions come from the BoM platform, so artifacts are versionless).
-    // Only Firebase AI Logic (Gemini) remains, powering the IRIS assistant. Firestore was retired
-    // in favor of Supabase; firebase-auth is kept as it backs Firebase AI Logic's app credentials.
-    implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-ai")
 
     // Test
     testImplementation(libs.junit)

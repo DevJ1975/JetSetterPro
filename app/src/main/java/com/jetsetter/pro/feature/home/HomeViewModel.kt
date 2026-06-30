@@ -6,6 +6,8 @@ import com.jetsetter.pro.core.data.mock.MockData
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.data.repository.ExpenseRepository
 import com.jetsetter.pro.core.data.repository.TripRepository
+import com.jetsetter.pro.core.intelligence.ProactiveEngine
+import com.jetsetter.pro.core.intelligence.TravelProfile
 import com.jetsetter.pro.core.model.Expense
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
@@ -23,6 +25,8 @@ class HomeViewModel @Inject constructor(
     tripRepository: TripRepository,
     expensesRepository: ExpenseRepository,
     private val stateStore: ModuleStateStore,
+    private val proactiveEngine: ProactiveEngine,
+    private val travelProfile: TravelProfile,
 ) : ViewModel() {
 
     init {
@@ -50,24 +54,6 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    // Proactive heads-ups IRIS would raise for the next flight. Mocked but trip-aware.
-    private val allAlerts: List<HomeAlert> = listOf(
-        HomeAlert(
-            id = "gate-change",
-            title = "Gate change",
-            message = "${MockData.nextFlight.ident} now departs from gate D14 " +
-                "(was ${MockData.nextFlight.gateOrigin ?: "TBD"}).",
-            severity = AlertSeverity.WARNING,
-        ),
-        HomeAlert(
-            id = "weather",
-            title = "Weather watch",
-            message = "Afternoon thunderstorms forecast in ${MockData.nextFlight.destination.city}. " +
-                "IRIS is watching for delays.",
-            severity = AlertSeverity.INFO,
-        ),
-    )
-
     val uiState: StateFlow<HomeUiState> =
         combine(
             tripRepository.observeTrips(),
@@ -77,11 +63,17 @@ class HomeViewModel @Inject constructor(
             val dismissed = dismissedJson?.let { json ->
                 runCatching { idsAdapter.fromJson(json) }.getOrNull()
             }.orEmpty().toSet()
+
+            // Keep the on-device learned profile current. Strictly local — never sent to IRIS.
+            viewModelScope.launch { travelProfile.update(trips, expenses) }
+
+            // Real, data-derived proactive nudges replace the old hardcoded gate/weather pair.
+            val alerts = proactiveEngine.computeAlerts(trips, expenses)
             HomeUiState(
                 nextFlight = MockData.nextFlight,
                 upcomingTrip = trips.firstOrNull(),
                 expenseSummary = summarize(expenses),
-                alerts = allAlerts.filterNot { it.id in dismissed },
+                alerts = alerts.filterNot { it.id in dismissed },
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 

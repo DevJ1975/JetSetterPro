@@ -5,6 +5,7 @@ import com.jetsetter.pro.core.ai.ClaudeClient
 import com.jetsetter.pro.core.ai.ClaudeEvent
 import com.jetsetter.pro.core.ai.IrisPersona
 import com.jetsetter.pro.core.ai.IrisToolDispatcher
+import com.jetsetter.pro.core.ai.OnDeviceAi
 import com.jetsetter.pro.core.secrets.Secrets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -18,10 +19,12 @@ import javax.inject.Singleton
 /**
  * Backs the IRIS assistant (Intelligent Routing & Itinerary Specialist).
  *
- * Tiering mirrors iOS: on-device (Phase C — Gemini Nano, not yet wired) → **Anthropic Claude**
- * (`claude-sonnet-4-6`, streaming, with tool use) → canned demo. When the `API_ANTHROPIC` key is
- * set IRIS streams from Claude and may call [IrisToolDispatcher] tools to actually act on the app
- * (add a trip, log an expense, summarize spend); otherwise it falls back to [IrisPersona.demoResponse].
+ * Tiering mirrors iOS: on-device (Phase C — Gemini Nano, seam wired via [OnDeviceAi]) →
+ * **Anthropic Claude** (`claude-sonnet-4-6`, streaming, with tool use) → canned demo. The
+ * on-device tier serves plain chat only and (with the default no-op binding) reports unavailable,
+ * so routing currently falls through to it. When the `API_ANTHROPIC` key is set IRIS streams from
+ * Claude and may call [IrisToolDispatcher] tools to actually act on the app (add a trip, log an
+ * expense, summarize spend); otherwise it falls back to [IrisPersona.demoResponse].
  *
  * The tool loop (see [stream]): stream a turn → if it ends with `tool_use`, echo the assistant's
  * `tool_use` blocks, run the tools, feed the `tool_result`s back, and stream again — until the
@@ -31,6 +34,7 @@ import javax.inject.Singleton
 class IrisRepository @Inject constructor(
     private val claude: ClaudeClient,
     private val tools: IrisToolDispatcher,
+    private val onDevice: OnDeviceAi,
 ) {
     /**
      * Streams IRIS's reply token-by-token. [history] is the full conversation; the last entry is
@@ -53,6 +57,15 @@ class IrisRepository @Inject constructor(
             .toMutableList()
         if (conversation.isEmpty()) {
             emit(IrisPersona.demoResponse(lastUserText))
+            return@flow
+        }
+
+        // Tier 1 — on-device (Phase C, Gemini Nano). Plain chat only: tools are not supported
+        // on-device, so any turn needing tool use falls through to the Claude loop below. The
+        // default binding reports unavailable, so this branch is a no-op until a real backend
+        // is supplied (see OnDeviceAi).
+        if (onDevice.isAvailable()) {
+            onDevice.stream(IrisPersona.SYSTEM_PROMPT, history).collect { emit(it) }
             return@flow
         }
 
