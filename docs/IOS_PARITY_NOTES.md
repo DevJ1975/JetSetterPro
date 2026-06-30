@@ -1,11 +1,36 @@
-# iOS ⇄ Android Parity Notes
+# iOS ⇄ Android Parity Notes — the living cross-platform contract
 
-> **Audience: the iOS agent.** This file records decisions made on the **Android** port that
-> the **iOS** app must match (or consciously diverge from) so the two stay identical in **look
-> and function**. When you change a shared contract on iOS, update this file and the Android
-> agent will mirror it. Android source of truth for these decisions: `AGENT_GUIDE.md`.
+> **This is a running document shared by BOTH platforms.** It is the single source of truth for
+> every contract the iOS app and the Android app must agree on — backend schema, auth model, the
+> IRIS assistant's behavior, and the design system. **Read it before you change anything shared,
+> and update it in the same change.** When you open Xcode, reference this file; when you open
+> Android Studio, reference this file. Whichever platform changes a shared contract first writes
+> the change here, and the other platform mirrors it.
+>
+> Audience: **both** the iOS and Android developers/agents. (Android's deeper internal rationale
+> lives in `AGENT_GUIDE.md`; iOS keeps its own, but anything *cross-platform* belongs **here**.)
 
-Last updated by the Android port: **cross-device data + auth migrated from Firebase to Supabase** (shared Postgres, RLS, anonymous Auth). Firestore retired. Firebase now powers only the IRIS assistant model (AI Logic) on Android.
+### How to use this document (the parity protocol)
+
+1. **Before** editing anything that crosses the platform boundary — a DB table/column, an enum
+   value, an auth flow, the IRIS system prompt or demo replies, a shared model field, a renamed UI
+   component — check the relevant section below.
+2. If your change alters a shared contract, **edit this file in the same commit/PR** and add a row
+   to the change log. Bump the schema version in §2 if you touch the Supabase shape.
+3. The other platform treats a change here as a to-do: mirror it, then tick it off (§6 checklist).
+4. **Intentional divergences are allowed** but must be recorded with the reason (e.g. IRIS's
+   on-device tier differs by OS) so neither side "fixes" them by accident.
+5. Keep field names, enum casing, and wire shapes **byte-identical** unless a section says otherwise.
+
+### Change log (newest first)
+
+| Date | Platform | Change |
+|---|---|---|
+| 2026-06-29 | Android | IRIS cloud tier moved to **Anthropic Claude `claude-sonnet-4-6`** (streaming + tool use); Firebase fully removed from source. See §4. |
+| 2026-06-29 | Android | Cross-device backend migrated **Firestore → Supabase** (Postgres + RLS + anonymous Auth); `trips`/`expenses` schema v1. See §1–3. |
+
+> Snapshot: data + auth = **Supabase** (shared project, RLS, anonymous sign-in). IRIS = on-device
+> tier *(Phase C, pending)* → **Claude** → demo, on both platforms. Firebase is **retired**.
 
 ---
 
