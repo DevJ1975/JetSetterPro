@@ -27,9 +27,15 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses")
     suspend fun getAll(): List<ExpenseEntity>
 
-    /** Deletes local expenses whose id is not in [ids]. Pass a non-empty list (use [deleteAll] for none). */
-    @Query("DELETE FROM expenses WHERE id NOT IN (:ids)")
-    suspend fun deleteNotIn(ids: List<String>)
+    @Query("SELECT id FROM expenses")
+    suspend fun getAllIds(): List<String>
+
+    /**
+     * Deletes the expenses with the given ids. Call in chunks (see ExpenseRepository.SYNC_DELETE_CHUNK)
+     * so the expanded `IN (:ids)` never exceeds SQLite's bound-variable limit.
+     */
+    @Query("DELETE FROM expenses WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 
     @Query("DELETE FROM expenses")
     suspend fun deleteAll()

@@ -44,6 +44,9 @@ class TripRepository @Inject constructor(
     private companion object {
         // bump the _vN suffix whenever the Room DB version changes — a destructive migration wipes the table but not this DataStore flag
         const val SEEDED_KEY = "trips_seeded_v2"
+
+        // Max ids per `DELETE … IN (:ids)` — keeps the expanded statement under SQLite's bound-variable limit.
+        const val SYNC_DELETE_CHUNK = 500
     }
 
     fun observeTrips(): Flow<List<Trip>> =
@@ -94,7 +97,7 @@ class TripRepository @Inject constructor(
             val remoteIds = remote.map { it.id }.toSet()
             if (remote.isNotEmpty()) tripDao.upsertAll(remote.map { it.toEntity() })
             tripDao.getAll()
-                .filter { it.id !in remoteIds }
+                .filter { it.id !in remoteIds && it.id !in MockData.seedTripIds }
                 .forEach { tripSync.push(uid, it.toDomain()) }
         }.onFailure { seedIfEmpty() }
 
@@ -117,7 +120,12 @@ class TripRepository @Inject constructor(
                         tripDao.deleteAll()
                     } else {
                         tripDao.upsertAll(remote.map { it.toEntity() })
-                        tripDao.deleteNotIn(remote.map { it.id })
+                        // Delete local rows the server no longer has. Computed in Kotlin and removed
+                        // in bounded chunks — a single `WHERE id NOT IN (:ids)` over the whole remote
+                        // set can exceed SQLite's bound-variable limit once a user has many rows.
+                        val remoteIds = remote.mapTo(HashSet()) { it.id }
+                        val stale = tripDao.getAllIds().filterNot { it in remoteIds }
+                        stale.chunked(SYNC_DELETE_CHUNK).forEach { tripDao.deleteByIds(it) }
                     }
                 }
         }

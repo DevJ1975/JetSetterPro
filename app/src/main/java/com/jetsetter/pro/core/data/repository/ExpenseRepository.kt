@@ -42,6 +42,9 @@ class ExpenseRepository @Inject constructor(
     private companion object {
         // bump the _vN suffix whenever the Room DB version changes — a destructive migration wipes the table but not this DataStore flag
         const val SEEDED_KEY = "expenses_seeded_v2"
+
+        // Max ids per `DELETE … IN (:ids)` — keeps the expanded statement under SQLite's bound-variable limit.
+        const val SYNC_DELETE_CHUNK = 500
     }
 
     fun observeExpenses(): Flow<List<Expense>> =
@@ -91,7 +94,7 @@ class ExpenseRepository @Inject constructor(
             val remoteIds = remote.map { it.id }.toSet()
             if (remote.isNotEmpty()) expenseDao.upsertAll(remote.map { it.toEntity() })
             expenseDao.getAll()
-                .filter { it.id !in remoteIds }
+                .filter { it.id !in remoteIds && it.id !in MockData.seedExpenseIds }
                 .forEach { expenseSync.push(uid, it.toDomain()) }
         }.onFailure { seedIfEmpty() }
 
@@ -114,7 +117,12 @@ class ExpenseRepository @Inject constructor(
                         expenseDao.deleteAll()
                     } else {
                         expenseDao.upsertAll(remote.map { it.toEntity() })
-                        expenseDao.deleteNotIn(remote.map { it.id })
+                        // Delete local rows the server no longer has. Computed in Kotlin and removed
+                        // in bounded chunks — a single `WHERE id NOT IN (:ids)` over the whole remote
+                        // set can exceed SQLite's bound-variable limit once a user has many rows.
+                        val remoteIds = remote.mapTo(HashSet()) { it.id }
+                        val stale = expenseDao.getAllIds().filterNot { it in remoteIds }
+                        stale.chunked(SYNC_DELETE_CHUNK).forEach { expenseDao.deleteByIds(it) }
                     }
                 }
         }

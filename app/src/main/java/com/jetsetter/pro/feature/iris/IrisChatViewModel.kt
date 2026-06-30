@@ -4,7 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jetsetter.pro.core.ai.AiMessage
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.data.repository.ExpenseRepository
 import com.jetsetter.pro.core.data.repository.IrisRepository
+import com.jetsetter.pro.core.data.repository.TripRepository
+import com.jetsetter.pro.core.model.Expense
+import com.jetsetter.pro.core.model.Trip
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -13,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,6 +28,8 @@ data class ChatMessage(val text: String, val fromUser: Boolean)
 class IrisChatViewModel @Inject constructor(
     private val irisRepository: IrisRepository,
     private val moduleStateStore: ModuleStateStore,
+    private val tripRepository: TripRepository,
+    private val expenseRepository: ExpenseRepository,
 ) : ViewModel() {
 
     // Persist the transcript as JSON so the conversation survives app restarts (guide: ModuleStateStore).
@@ -39,7 +46,23 @@ class IrisChatViewModel @Inject constructor(
             if (!saved.isNullOrEmpty()) {
                 _ui.update { it.copy(messages = saved) }
             }
+            // Tailor the quick-prompt chips to the live itinerary + ledger.
+            val trips = runCatching { tripRepository.observeTrips().first() }.getOrDefault(emptyList())
+            val expenses = runCatching { expenseRepository.observeExpenses().first() }.getOrDefault(emptyList())
+            _ui.update { it.copy(suggestions = buildSuggestions(trips, expenses)) }
         }
+    }
+
+    /** Context-aware quick prompts: reference the nearest trip and the ledger, else the defaults. */
+    private fun buildSuggestions(trips: List<Trip>, expenses: List<Expense>): List<String> {
+        val chips = mutableListOf<String>()
+        trips.minByOrNull { it.startDate }?.let { trip ->
+            chips += "Help me pack for ${trip.destination}"
+            if (trip.packingList.any { !it.isPacked }) chips += "What's left to pack?"
+        }
+        if (expenses.isNotEmpty()) chips += "Summarize my spend"
+        chips += "What's my gate?"
+        return chips.distinct().take(4).ifEmpty { DEFAULT_SUGGESTIONS }
     }
 
     fun send(text: String) {

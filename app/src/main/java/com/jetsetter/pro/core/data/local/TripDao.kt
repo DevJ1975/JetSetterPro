@@ -27,9 +27,15 @@ interface TripDao {
     @Query("SELECT * FROM trips")
     suspend fun getAll(): List<TripEntity>
 
-    /** Deletes local trips whose id is not in [ids]. Pass a non-empty list (use [deleteAll] for none). */
-    @Query("DELETE FROM trips WHERE id NOT IN (:ids)")
-    suspend fun deleteNotIn(ids: List<String>)
+    @Query("SELECT id FROM trips")
+    suspend fun getAllIds(): List<String>
+
+    /**
+     * Deletes the trips with the given ids. Call in chunks (see TripRepository.SYNC_DELETE_CHUNK)
+     * so the expanded `IN (:ids)` never exceeds SQLite's bound-variable limit.
+     */
+    @Query("DELETE FROM trips WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 
     @Query("DELETE FROM trips")
     suspend fun deleteAll()

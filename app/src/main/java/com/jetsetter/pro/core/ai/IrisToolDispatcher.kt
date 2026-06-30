@@ -30,6 +30,8 @@ class IrisToolDispatcher @Inject constructor(
         "add_trip" -> addTrip(input)
         "log_expense" -> logExpense(input)
         "get_expense_summary" -> expenseSummary()
+        "list_trips" -> listTrips()
+        "mark_packed" -> markPacked(input)
         else -> "Unknown tool: $name"
     }
 
@@ -76,6 +78,32 @@ class IrisToolDispatcher @Inject constructor(
         }
     }
 
+    private suspend fun listTrips(): String {
+        val trips = tripRepository.observeTrips().first()
+        if (trips.isEmpty()) return "No trips on the itinerary yet."
+        return "Your trips:\n" + trips.joinToString("\n") {
+            "• ${it.name} — ${it.destination} (${it.startDate} → ${it.endDate})"
+        }
+    }
+
+    private suspend fun markPacked(input: JSONObject): String {
+        val itemQuery = input.optString("item").trim()
+        if (itemQuery.isEmpty()) return "mark_packed needs the name of a packing item."
+        val tripQuery = input.optString("trip").trim()
+        val trips = tripRepository.observeTrips().first()
+        val trip = trips.firstOrNull {
+            tripQuery.isNotEmpty() && (it.name.contains(tripQuery, true) || it.destination.contains(tripQuery, true))
+        } ?: trips.firstOrNull { t -> t.packingList.any { it.name.contains(itemQuery, true) } }
+            ?: return "Couldn't find a trip with a \"$itemQuery\" packing item."
+        val item = trip.packingList.firstOrNull { it.name.contains(itemQuery, true) }
+            ?: return "\"$itemQuery\" isn't on ${trip.name}'s packing list."
+        if (item.isPacked) return "\"${item.name}\" is already checked off for ${trip.name}."
+        tripRepository.upsert(
+            trip.copy(packingList = trip.packingList.map { if (it.id == item.id) it.copy(isPacked = true) else it }),
+        )
+        return "Checked off \"${item.name}\" for ${trip.name}."
+    }
+
     private fun money(value: Double): String = String.format(Locale.US, "%.2f", value)
 
     /** Anthropic tool-definition schema sent on every IRIS request. */
@@ -114,6 +142,24 @@ class IrisToolDispatcher @Inject constructor(
                 description = "Summarize the user's logged expenses (total and largest category). Use when asked about spending.",
                 properties = JSONObject(),
                 required = emptyList(),
+            ),
+        )
+        .put(
+            tool(
+                name = "list_trips",
+                description = "List the user's trips with their dates and destinations. Use when asked what trips they have.",
+                properties = JSONObject(),
+                required = emptyList(),
+            ),
+        )
+        .put(
+            tool(
+                name = "mark_packed",
+                description = "Check off a packing-list item as packed for a trip. Use when the user says they've packed something.",
+                properties = JSONObject()
+                    .put("item", strProp("The packing item to mark packed, e.g. \"Passport\""))
+                    .put("trip", strProp("Optional trip name or destination to disambiguate")),
+                required = listOf("item"),
             ),
         )
 

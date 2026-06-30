@@ -177,7 +177,9 @@ private fun ConverterCard(
         ) {
             Text("CONVERTER", style = typography.caption, color = colors.textSecondary)
             if (state.lastUpdated.isNotEmpty()) {
-                AccentTag(text = "Live mock", icon = Icons.Filled.Schedule)
+                // Bundled, offline FX table — not a live quote. The real key for live FX is a
+                // future drop-in (CurrencytrackerFxData.API_FX_KEY is unset).
+                AccentTag(text = CurrencytrackerFxData.APPROXIMATE_LABEL, icon = Icons.Filled.Schedule)
             }
         }
 

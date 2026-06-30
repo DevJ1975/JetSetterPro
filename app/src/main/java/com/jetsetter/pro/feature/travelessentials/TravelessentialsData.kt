@@ -1,0 +1,482 @@
+package com.jetsetter.pro.feature.travelessentials
+
+import java.util.Locale
+
+/**
+ * Bundled, offline reference catalog of destination essentials — no network, no API key.
+ *
+ * This is the single source of truth the repository serves. Every figure here is a static,
+ * real-world value (plug types, voltage/frequency, local currency, emergency numbers, tap-water
+ * safety and the local tipping norm) curated for the destinations a traveller is most likely to
+ * look up. FX rates are bundled snapshots — fine for the at-a-glance converter, not live trading.
+ *
+ * Zone ids and FX rates are stored as primitives (not pre-baked display strings) so the screen's
+ * live clock and currency converter compute from them directly and can never drift.
+ *
+ * [lookup] resolves a destination the UI asks for (by city, country, id, currency code or
+ * language) and falls back to [DEFAULT] for anything not in the table, so an unknown destination
+ * still renders a useful, safe-by-default card.
+ */
+internal object TravelEssentialsCatalog {
+
+    /** All real destinations, in display order. Excludes [DEFAULT] (fallback only, never a chip). */
+    val destinations: List<TravelEssentialsDestination> = listOf(
+        // United States
+        TravelEssentialsDestination(
+            id = "newyork",
+            city = "New York",
+            country = "United States",
+            flag = "🇺🇸",
+            languages = "English",
+            timeZoneAbbrev = "EST",
+            zoneId = "America/New_York",
+            plugType = "Type A / Type B",
+            voltage = "120 V · 60 Hz",
+            currency = "US Dollar",
+            currencyCode = "USD",
+            currencySymbol = "$",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 1.0,
+            emergencyGeneral = "911",
+            emergencyPolice = "911",
+            emergencyMedical = "911",
+            tippingNorm = "Expected",
+            tipping = "Expected: 15-20% at restaurants, \$1-2 per drink at bars.",
+            tapWaterSafe = true,
+            tapWaterNote = "NYC tap water is famously high quality and safe to drink.",
+            phrases = listOf(
+                TravelEssentialsPhrase("How's it going?", "—", "Casual hello"),
+                TravelEssentialsPhrase("Can I get a check?", "—", "Asking for the bill"),
+                TravelEssentialsPhrase("Which way to the subway?", "—", "Finding the metro"),
+                TravelEssentialsPhrase("Keep the change", "—", "Leaving a tip"),
+            ),
+        ),
+        // Japan
+        TravelEssentialsDestination(
+            id = "tokyo",
+            city = "Tokyo",
+            country = "Japan",
+            flag = "🇯🇵",
+            languages = "Japanese",
+            timeZoneAbbrev = "JST",
+            zoneId = "Asia/Tokyo",
+            plugType = "Type A / Type B",
+            voltage = "100 V · 50/60 Hz",
+            currency = "Japanese Yen",
+            currencyCode = "JPY",
+            currencySymbol = "¥",
+            currencyDecimals = 0,
+            exchangeRatePerUsd = 157.0,
+            emergencyGeneral = "110 / 119",
+            emergencyPolice = "110",
+            emergencyMedical = "119 (fire & ambulance)",
+            tippingNorm = "Not customary",
+            tipping = "Not customary — tipping can even be seen as rude.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap water is clean and safe to drink nationwide.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Konnichiwa", "kon-nee-chee-wah", "Hello"),
+                TravelEssentialsPhrase("Arigatou gozaimasu", "ah-ree-gah-toh go-zai-mas", "Thank you"),
+                TravelEssentialsPhrase("Sumimasen", "soo-mee-mah-sen", "Excuse me / Sorry"),
+                TravelEssentialsPhrase("Ikura desu ka?", "ee-koo-rah des-kah", "How much is it?"),
+                TravelEssentialsPhrase("Eigo o hanasemasu ka?", "ay-go oh hah-nah-seh-mas-kah", "Do you speak English?"),
+            ),
+        ),
+        // United Kingdom
+        TravelEssentialsDestination(
+            id = "london",
+            city = "London",
+            country = "United Kingdom",
+            flag = "🇬🇧",
+            languages = "English",
+            timeZoneAbbrev = "GMT",
+            zoneId = "Europe/London",
+            plugType = "Type G",
+            voltage = "230 V · 50 Hz",
+            currency = "Pound Sterling",
+            currencyCode = "GBP",
+            currencySymbol = "£",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 0.79,
+            emergencyGeneral = "999 / 112",
+            emergencyPolice = "999",
+            emergencyMedical = "999 (111 for non-urgent NHS)",
+            tippingNorm = "Optional",
+            tipping = "10-15% at restaurants if no service charge is already added.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap water is safe and good to drink across the UK.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Cheers", "—", "Thanks / Goodbye"),
+                TravelEssentialsPhrase("You alright?", "—", "Casual hello"),
+                TravelEssentialsPhrase("Could I get the bill?", "—", "Asking for the cheque"),
+                TravelEssentialsPhrase("Which way to the Tube?", "—", "Finding the Underground"),
+            ),
+        ),
+        // France
+        TravelEssentialsDestination(
+            id = "paris",
+            city = "Paris",
+            country = "France",
+            flag = "🇫🇷",
+            languages = "French",
+            timeZoneAbbrev = "CET",
+            zoneId = "Europe/Paris",
+            plugType = "Type C / Type E",
+            voltage = "230 V · 50 Hz",
+            currency = "Euro",
+            currencyCode = "EUR",
+            currencySymbol = "€",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 0.92,
+            emergencyGeneral = "112",
+            emergencyPolice = "17",
+            emergencyMedical = "15 (SAMU)",
+            tippingNorm = "Optional",
+            tipping = "Service is included; rounding up or ~5% is appreciated.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap water is safe — ask for 'une carafe d'eau' for free.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Bonjour", "bon-zhoor", "Hello"),
+                TravelEssentialsPhrase("Merci", "mair-see", "Thank you"),
+                TravelEssentialsPhrase("S'il vous plaît", "seel-voo-play", "Please"),
+                TravelEssentialsPhrase("Parlez-vous anglais?", "par-lay-voo on-glay", "Do you speak English?"),
+                TravelEssentialsPhrase("L'addition, s'il vous plaît", "lah-dee-syon", "The bill, please"),
+            ),
+        ),
+        // Germany
+        TravelEssentialsDestination(
+            id = "berlin",
+            city = "Berlin",
+            country = "Germany",
+            flag = "🇩🇪",
+            languages = "German",
+            timeZoneAbbrev = "CET",
+            zoneId = "Europe/Berlin",
+            plugType = "Type C / Type F",
+            voltage = "230 V · 50 Hz",
+            currency = "Euro",
+            currencyCode = "EUR",
+            currencySymbol = "€",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 0.92,
+            emergencyGeneral = "112",
+            emergencyPolice = "110",
+            emergencyMedical = "112",
+            tippingNorm = "Optional",
+            tipping = "Round up or add 5-10%; tell the server the total as you pay.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap (Leitungswasser) is safe; restaurants may still nudge bottled.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Hallo", "hah-loh", "Hello"),
+                TravelEssentialsPhrase("Danke", "dahn-kuh", "Thank you"),
+                TravelEssentialsPhrase("Bitte", "bit-tuh", "Please / You're welcome"),
+                TravelEssentialsPhrase("Was kostet das?", "vass kos-tet dass", "How much is it?"),
+                TravelEssentialsPhrase("Sprechen Sie Englisch?", "shpre-khen zee eng-lish", "Do you speak English?"),
+            ),
+        ),
+        // Italy
+        TravelEssentialsDestination(
+            id = "rome",
+            city = "Rome",
+            country = "Italy",
+            flag = "🇮🇹",
+            languages = "Italian",
+            timeZoneAbbrev = "CET",
+            zoneId = "Europe/Rome",
+            plugType = "Type C / Type F / Type L",
+            voltage = "230 V · 50 Hz",
+            currency = "Euro",
+            currencyCode = "EUR",
+            currencySymbol = "€",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 0.92,
+            emergencyGeneral = "112",
+            emergencyPolice = "113",
+            emergencyMedical = "118",
+            tippingNorm = "Optional",
+            tipping = "Often a 'coperto' cover charge applies; rounding up is plenty.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap water is safe — fill up free at Rome's 'nasoni' fountains.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Ciao", "chow", "Hi / Bye"),
+                TravelEssentialsPhrase("Grazie", "graht-see-eh", "Thank you"),
+                TravelEssentialsPhrase("Per favore", "pair fah-voh-reh", "Please"),
+                TravelEssentialsPhrase("Quanto costa?", "kwan-toh kos-tah", "How much is it?"),
+                TravelEssentialsPhrase("Il conto, per favore", "eel kon-toh", "The bill, please"),
+            ),
+        ),
+        // Spain
+        TravelEssentialsDestination(
+            id = "madrid",
+            city = "Madrid",
+            country = "Spain",
+            flag = "🇪🇸",
+            languages = "Spanish",
+            timeZoneAbbrev = "CET",
+            zoneId = "Europe/Madrid",
+            plugType = "Type C / Type F",
+            voltage = "230 V · 50 Hz",
+            currency = "Euro",
+            currencyCode = "EUR",
+            currencySymbol = "€",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 0.92,
+            emergencyGeneral = "112",
+            emergencyPolice = "091",
+            emergencyMedical = "061",
+            tippingNorm = "Optional",
+            tipping = "Not expected; leaving small change or ~5% is a kind gesture.",
+            tapWaterSafe = true,
+            tapWaterNote = "Madrid's tap water is excellent and safe to drink.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Hola", "oh-lah", "Hello"),
+                TravelEssentialsPhrase("Gracias", "grah-syas", "Thank you"),
+                TravelEssentialsPhrase("Por favor", "por fah-vor", "Please"),
+                TravelEssentialsPhrase("¿Cuánto cuesta?", "kwan-toh kwes-tah", "How much is it?"),
+                TravelEssentialsPhrase("La cuenta, por favor", "lah kwen-tah", "The bill, please"),
+            ),
+        ),
+        // Australia
+        TravelEssentialsDestination(
+            id = "sydney",
+            city = "Sydney",
+            country = "Australia",
+            flag = "🇦🇺",
+            languages = "English",
+            timeZoneAbbrev = "AEST",
+            zoneId = "Australia/Sydney",
+            plugType = "Type I",
+            voltage = "230 V · 50 Hz",
+            currency = "Australian Dollar",
+            currencyCode = "AUD",
+            currencySymbol = "$",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 1.52,
+            emergencyGeneral = "000 (112 from mobiles)",
+            emergencyPolice = "000",
+            emergencyMedical = "000",
+            tippingNorm = "Not customary",
+            tipping = "Not expected — staff earn a full wage; round up for great service.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap water is safe and high quality across Australia.",
+            phrases = listOf(
+                TravelEssentialsPhrase("G'day", "g-day", "Hello"),
+                TravelEssentialsPhrase("Cheers", "—", "Thanks"),
+                TravelEssentialsPhrase("No worries", "—", "It's fine / You're welcome"),
+                TravelEssentialsPhrase("How much is this?", "—", "Asking the price"),
+            ),
+        ),
+        // Canada
+        TravelEssentialsDestination(
+            id = "toronto",
+            city = "Toronto",
+            country = "Canada",
+            flag = "🇨🇦",
+            languages = "English · French",
+            timeZoneAbbrev = "EST",
+            zoneId = "America/Toronto",
+            plugType = "Type A / Type B",
+            voltage = "120 V · 60 Hz",
+            currency = "Canadian Dollar",
+            currencyCode = "CAD",
+            currencySymbol = "$",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 1.37,
+            emergencyGeneral = "911",
+            emergencyPolice = "911",
+            emergencyMedical = "911",
+            tippingNorm = "Expected",
+            tipping = "Expected: 15-20% at restaurants; many terminals prompt a tip.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap water is safe and tightly regulated nationwide.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Hi there", "—", "Casual hello"),
+                TravelEssentialsPhrase("Thanks so much", "—", "Thank you"),
+                TravelEssentialsPhrase("Could I get the bill?", "—", "Asking for the cheque"),
+                TravelEssentialsPhrase("Where's the nearest station?", "—", "Finding transit"),
+            ),
+        ),
+        // Mexico
+        TravelEssentialsDestination(
+            id = "mexicocity",
+            city = "Mexico City",
+            country = "Mexico",
+            flag = "🇲🇽",
+            languages = "Spanish",
+            timeZoneAbbrev = "CST",
+            zoneId = "America/Mexico_City",
+            plugType = "Type A / Type B",
+            voltage = "127 V · 60 Hz",
+            currency = "Mexican Peso",
+            currencyCode = "MXN",
+            currencySymbol = "$",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 17.2,
+            emergencyGeneral = "911",
+            emergencyPolice = "911",
+            emergencyMedical = "911",
+            tippingNorm = "Expected",
+            tipping = "10-15% at restaurants; small change for porters and drivers.",
+            tapWaterSafe = false,
+            tapWaterNote = "Don't drink the tap water — stick to bottled or filtered.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Hola", "oh-lah", "Hello"),
+                TravelEssentialsPhrase("Gracias", "grah-syas", "Thank you"),
+                TravelEssentialsPhrase("Por favor", "por fah-vor", "Please"),
+                TravelEssentialsPhrase("¿Cuánto cuesta?", "kwan-toh kwes-tah", "How much is it?"),
+                TravelEssentialsPhrase("La cuenta, por favor", "lah kwen-tah", "The bill, please"),
+            ),
+        ),
+        // Thailand
+        TravelEssentialsDestination(
+            id = "bangkok",
+            city = "Bangkok",
+            country = "Thailand",
+            flag = "🇹🇭",
+            languages = "Thai",
+            timeZoneAbbrev = "ICT",
+            zoneId = "Asia/Bangkok",
+            plugType = "Type A / Type B / Type C",
+            voltage = "230 V · 50 Hz",
+            currency = "Thai Baht",
+            currencyCode = "THB",
+            currencySymbol = "฿",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 36.5,
+            emergencyGeneral = "191 (Tourist Police 1155)",
+            emergencyPolice = "191",
+            emergencyMedical = "1669 (ambulance)",
+            tippingNorm = "Optional",
+            tipping = "Not expected; round up or leave small change for good service.",
+            tapWaterSafe = false,
+            tapWaterNote = "Avoid tap water — drink bottled, which is cheap and everywhere.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Sawasdee", "sa-wat-dee", "Hello"),
+                TravelEssentialsPhrase("Khop khun", "kop-koon", "Thank you"),
+                TravelEssentialsPhrase("Tao rai?", "tao-rye", "How much is it?"),
+                TravelEssentialsPhrase("Mai phet", "my-pet", "Not spicy"),
+                TravelEssentialsPhrase("Hong nam yu thi nai?", "hong-nahm yoo tee-nye", "Where's the toilet?"),
+            ),
+        ),
+        // United Arab Emirates
+        TravelEssentialsDestination(
+            id = "dubai",
+            city = "Dubai",
+            country = "United Arab Emirates",
+            flag = "🇦🇪",
+            languages = "Arabic · English",
+            timeZoneAbbrev = "GST",
+            zoneId = "Asia/Dubai",
+            plugType = "Type G",
+            voltage = "230 V · 50 Hz",
+            currency = "UAE Dirham",
+            currencyCode = "AED",
+            currencySymbol = "د.إ",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 3.67,
+            emergencyGeneral = "999",
+            emergencyPolice = "999",
+            emergencyMedical = "998 (ambulance)",
+            tippingNorm = "Optional",
+            tipping = "10-15% is appreciated; often a service charge is already added.",
+            tapWaterSafe = true,
+            tapWaterNote = "Desalinated tap water is safe; most locals still prefer bottled.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Marhaba", "mar-ha-ba", "Hello"),
+                TravelEssentialsPhrase("Shukran", "shoo-kran", "Thank you"),
+                TravelEssentialsPhrase("Min fadlak", "min fad-lak", "Please"),
+                TravelEssentialsPhrase("Kam howa?", "kam hoo-wa", "How much is it?"),
+            ),
+        ),
+        // Singapore
+        TravelEssentialsDestination(
+            id = "singapore",
+            city = "Singapore",
+            country = "Singapore",
+            flag = "🇸🇬",
+            languages = "English · Malay · Mandarin · Tamil",
+            timeZoneAbbrev = "SGT",
+            zoneId = "Asia/Singapore",
+            plugType = "Type G",
+            voltage = "230 V · 50 Hz",
+            currency = "Singapore Dollar",
+            currencyCode = "SGD",
+            currencySymbol = "$",
+            currencyDecimals = 2,
+            exchangeRatePerUsd = 1.35,
+            emergencyGeneral = "999 / 995",
+            emergencyPolice = "999",
+            emergencyMedical = "995 (fire & ambulance)",
+            tippingNorm = "Not customary",
+            tipping = "Not expected — a 10% service charge is usually already on the bill.",
+            tapWaterSafe = true,
+            tapWaterNote = "Tap water meets WHO standards and is safe straight from the tap.",
+            phrases = listOf(
+                TravelEssentialsPhrase("Hello", "—", "Hello"),
+                TravelEssentialsPhrase("Terima kasih", "tuh-ree-mah kah-seh", "Thank you (Malay)"),
+                TravelEssentialsPhrase("Xie xie", "shieh-shieh", "Thank you (Mandarin)"),
+                TravelEssentialsPhrase("How much ah?", "—", "How much is it? (Singlish)"),
+                TravelEssentialsPhrase("Can or not?", "—", "Is that possible?"),
+            ),
+        ),
+    )
+
+    /**
+     * Safe, generic fallback for any destination not in [destinations]. Values are the
+     * broadly-true defaults a traveller can rely on when specifics are unknown: the GSM-standard
+     * 112 emergency line, the most common European plug/voltage, a neutral USD baseline for the
+     * converter, and bottled-water guidance so the advice errs on the side of caution.
+     */
+    val DEFAULT: TravelEssentialsDestination = TravelEssentialsDestination(
+        id = "default",
+        city = "Your destination",
+        country = "Worldwide",
+        flag = "🌍",
+        languages = "Local language · English widely spoken",
+        timeZoneAbbrev = "UTC",
+        zoneId = "UTC",
+        plugType = "Type C (varies by country)",
+        voltage = "230 V · 50 Hz (varies)",
+        currency = "US Dollar",
+        currencyCode = "USD",
+        currencySymbol = "$",
+        currencyDecimals = 2,
+        exchangeRatePerUsd = 1.0,
+        emergencyGeneral = "112 (works on GSM phones in many countries)",
+        emergencyPolice = "112",
+        emergencyMedical = "112",
+        tippingNorm = "Optional",
+        tipping = "Norms vary — check locally; rounding up is rarely wrong.",
+        tapWaterSafe = false,
+        tapWaterNote = "Tap-water safety varies — when unsure, choose bottled or filtered.",
+        phrases = listOf(
+            TravelEssentialsPhrase("Hello", "—", "Greeting"),
+            TravelEssentialsPhrase("Thank you", "—", "Showing thanks"),
+            TravelEssentialsPhrase("How much is it?", "—", "Asking the price"),
+            TravelEssentialsPhrase("Do you speak English?", "—", "Finding a common language"),
+        ),
+    )
+
+    /**
+     * Resolves the destination the UI asks for to a bundled entry, matching (case/space-insensitive)
+     * on id, city, country, currency code or language. Returns [DEFAULT] for anything not covered,
+     * so an unknown destination still renders a useful, safe-by-default card. A blank query returns
+     * the first destination (the screen's default selection).
+     */
+    fun lookup(query: String?): TravelEssentialsDestination {
+        val normalized = query?.trim()?.lowercase(Locale.US).orEmpty()
+        if (normalized.isEmpty()) return destinations.first()
+
+        // Exact id/city/country/currency match first, then a looser "contains" pass.
+        return destinations.firstOrNull {
+            it.id == normalized ||
+                it.city.lowercase(Locale.US) == normalized ||
+                it.country.lowercase(Locale.US) == normalized ||
+                it.currencyCode.lowercase(Locale.US) == normalized
+        } ?: destinations.firstOrNull {
+            it.city.lowercase(Locale.US).contains(normalized) ||
+                it.country.lowercase(Locale.US).contains(normalized) ||
+                it.languages.lowercase(Locale.US).contains(normalized)
+        } ?: DEFAULT
+    }
+}
