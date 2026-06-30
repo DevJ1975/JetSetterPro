@@ -4,11 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jetsetter.pro.core.ai.AiMessage
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.data.prefs.UserPreferencesRepository
 import com.jetsetter.pro.core.data.repository.ExpenseRepository
 import com.jetsetter.pro.core.data.repository.IrisRepository
 import com.jetsetter.pro.core.data.repository.TripRepository
+import com.jetsetter.pro.core.intelligence.UserMemory
 import com.jetsetter.pro.core.model.Expense
 import com.jetsetter.pro.core.model.Trip
+import java.time.LocalTime
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -30,6 +33,8 @@ class IrisChatViewModel @Inject constructor(
     private val moduleStateStore: ModuleStateStore,
     private val tripRepository: TripRepository,
     private val expenseRepository: ExpenseRepository,
+    private val userMemory: UserMemory,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     // Persist the transcript as JSON so the conversation survives app restarts (guide: ModuleStateStore).
@@ -51,6 +56,17 @@ class IrisChatViewModel @Inject constructor(
             val expenses = runCatching { expenseRepository.observeExpenses().first() }.getOrDefault(emptyList())
             _ui.update { it.copy(suggestions = buildSuggestions(trips, expenses)) }
         }
+        // Mirror the persisted TTS opt-in into UI state.
+        viewModelScope.launch {
+            userPreferencesRepository.preferences.collect { prefs ->
+                _ui.update { it.copy(ttsEnabled = prefs.ttsEnabled) }
+            }
+        }
+    }
+
+    /** Toggle speak-aloud (TTS); persisted in UserPreferences. */
+    fun setTtsEnabled(enabled: Boolean) {
+        viewModelScope.launch { userPreferencesRepository.setTtsEnabled(enabled) }
     }
 
     /** Context-aware quick prompts: reference the nearest trip and the ledger, else the defaults. */
@@ -72,6 +88,12 @@ class IrisChatViewModel @Inject constructor(
         val history = _ui.value.messages + ChatMessage(trimmed, fromUser = true)
         _ui.update { it.copy(messages = history, isThinking = true) }
 
+        // Learn the user, on-device only (PERSONAL — never sent to Claude).
+        viewModelScope.launch {
+            userMemory.recordTopic(classifyTopic(trimmed))
+            userMemory.recordUsage(LocalTime.now().hour)
+        }
+
         viewModelScope.launch {
             val aiHistory = history.map { AiMessage(if (it.fromUser) "user" else "model", it.text) }
 
@@ -91,6 +113,22 @@ class IrisChatViewModel @Inject constructor(
 
             _ui.update { it.copy(isThinking = false) }
             runCatching { moduleStateStore.save(KEY, messagesAdapter.toJson(_ui.value.messages)) }
+        }
+    }
+
+    /** Deterministic on-device topic bucket for a user message (no model, no network). */
+    private fun classifyTopic(text: String): String {
+        val t = text.lowercase()
+        return when {
+            "pack" in t -> "packing"
+            "delay" in t || "gate" in t || "boarding" in t -> "flight-status"
+            "expense" in t || "spend" in t || "budget" in t || "receipt" in t -> "expenses"
+            "visa" in t || "passport" in t || "esta" in t || "etias" in t || "entry" in t -> "visa-entry"
+            "hotel" in t || "lodging" in t || "stay" in t -> "lodging"
+            "restaurant" in t || "dinner" in t || "eat" in t || "food" in t -> "dining"
+            "lounge" in t || "loyalty" in t || "miles" in t || "status" in t -> "loyalty"
+            "weather" in t || "forecast" in t -> "weather"
+            else -> "general"
         }
     }
 

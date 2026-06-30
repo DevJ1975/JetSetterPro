@@ -47,6 +47,8 @@ env vars.
 |---|---|---|---|---|
 | **Supabase** | Cross-device sync (trips, expenses) + auth | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | ✅ keys set — see §2 for the 2 dashboard steps still needed | P0 |
 | **Anthropic Claude** | IRIS assistant (chat + tool use) | `API_ANTHROPIC` | 🟡 add key to go live (else demo replies) | P0 |
+| **On-device RAG KB** | IRIS grounding (travel knowledge + user data) | none — fully on-device | ✅ no key; ships a bundled KB artifact (see §3) | P0 |
+| **Gemini Nano (on-device)** | IRIS on-device tier (ML Kit GenAI) | none — device-gated | ✅ no key; self-gates to Claude where unsupported | P1 |
 | **Google Maps** | Flight map overlay | `MAPS_API_KEY` | ✅ key set (debug cert needs allow-listing) | P1 |
 | **FlightAware AeroAPI** | Live flight status / board / in-flight | `API_FLIGHTAWARE` | 🟡 | P1 |
 | **Google Vision** | Receipt OCR (expense scan) | `API_GOOGLE_VISION` | 🟡 | P1 |
@@ -87,7 +89,8 @@ env vars.
 ## 3. Anthropic Claude — IRIS assistant 🟡
 
 - **Powers:** the IRIS chat (streaming replies) and **tool use** (IRIS can add a trip, log an
-  expense, summarize spend). Tier order: on-device *(Phase C, pending)* → **Claude** → demo replies.
+  expense, summarize spend). Tier order: on-device **Gemini Nano** (now wired; self-gates) →
+  **Claude** → demo replies.
 - **Key:** `API_ANTHROPIC`. Blank ⇒ IRIS answers from canned demo replies (still fully usable offline).
 - **Sign up:** <https://console.anthropic.com> → **API Keys** → create key (starts with `sk-ant-…`).
 - **Auth / endpoint:** `POST https://api.anthropic.com/v1/messages`, headers `x-api-key: <key>` +
@@ -95,8 +98,26 @@ env vars.
 - **Cost:** **pay-as-you-go per token.** `claude-sonnet-4-6` ≈ **$3 / 1M input tokens, $15 / 1M
   output tokens** (each IRIS turn is tiny — a fraction of a cent). Requires a small prepaid balance.
   <https://www.anthropic.com/pricing>
-- **Privacy rule:** only the conversation + the static system prompt are sent. The on-device learned
-  profile (Phase F) must **never** be sent to Claude.
+- **Privacy rule:** only the conversation + the static system prompt + **`PUBLIC`** RAG knowledge are
+  sent. The on-device learned profile (`TravelProfile`, Phase F), learned memory (`UserMemory`), and
+  any `PERSONAL` KB chunk must **never** be sent to Claude — enforced by `ContextAssembler`.
+
+### On-device RAG knowledge base (no key) ✅
+
+- **Powers:** grounds IRIS in general travel knowledge (visa/entry, baggage, packing, loyalty,
+  etiquette) and the user's own trips/expenses. Works on the Claude tier (PUBLIC only) and the
+  Gemini Nano tier (PUBLIC + PERSONAL, on-device).
+- **No API key** — fully on-device. The embedder is MediaPipe `tasks-text` (model id `use-v1`); the
+  Nano tier is the ML Kit GenAI **Prompt API** (`com.google.mlkit:genai-prompt`). Both are
+  device-gated and degrade gracefully (RAG-off / Claude fallback) where unsupported.
+- **Bundled assets** (in `app/src/main/assets/`, produced by `tools/iris-kb`):
+  - `use_embedder.tflite` — the on-device embedder model (the **same** file the offline builder uses).
+  - `iris_kb_v<n>.db` + `iris_kb_v<n>.manifest.json` — the pre-embedded KB + its manifest.
+  - **Pin the model checkpoint + sha256** in `tools/iris-kb/models/DOWNLOAD.md`.
+- **Build / update the KB:** `cd tools/iris-kb && make build eval verify-parity`. Bump `kb_version`
+  in `kb_config.yaml` **and** `KbVersion.CURRENT` together; the app re-seeds once per version (flag
+  `kb_seeded_v<n>`). `eval` gates on recall@5; `verify-parity` guards embedder drift. This is a RAG
+  knowledge-build pipeline — **Gemini Nano is RAG-grounded, not fine-tuned** (apps can't train it).
 
 ---
 

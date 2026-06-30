@@ -26,6 +26,7 @@
 
 | Date | Platform | Change |
 |---|---|---|
+| 2026-06-29 | Android | IRIS gains an **on-device RAG knowledge base** (general-travel KB + the user's own data), a **Gemini Nano** on-device tier (ML Kit GenAI Prompt API), an on-device **preference-learning loop** (`UserMemory`), proactive anticipation upgrades, and **voice output (TTS)**. See §4, §7–§9. |
 | 2026-06-29 | Android | IRIS cloud tier moved to **Anthropic Claude `claude-sonnet-4-6`** (streaming + tool use); Firebase fully removed from source. See §4. |
 | 2026-06-29 | Android | Cross-device backend migrated **Firestore → Supabase** (Postgres + RLS + anonymous Auth); `trips`/`expenses` schema v1. See §1–3. |
 
@@ -89,10 +90,11 @@ Canonical DDL: **`supabase/migrations/0001_init_trips_expenses.sql`**. Tables li
 
 ## 4. IRIS assistant — now provider-aligned (Claude on both platforms)
 
-- **Android:** IRIS streams from **Anthropic Claude**, model **`claude-sonnet-4-6`**, `POST /v1/messages` with `stream: true`, `max_tokens: 1024` (`core.ai.ClaudeClient`). Tiering mirrors iOS: on-device **Gemini Nano** (Phase C — ML Kit GenAI / AICore, not yet wired) → Claude → canned demo. Live when `API_ANTHROPIC` is set; otherwise the demo fallback answers. **Firebase AI Logic / Gemini is retired — Firebase is no longer used by Android at all.**
+- **Android:** IRIS streams from **Anthropic Claude**, model **`claude-sonnet-4-6`**, `POST /v1/messages` with `stream: true`, `max_tokens: 1024` (`core.ai.ClaudeClient`). Tiering mirrors iOS: on-device **Gemini Nano** (now wired via the **ML Kit GenAI Prompt API**, `core.ai.GeminiNanoOnDeviceAi`) → Claude → canned demo. The Nano tier **self-gates** (`isAvailable()` is true only when AICore reports the feature `AVAILABLE`), so on the vast majority of devices routing still falls through to Claude. Live when `API_ANTHROPIC` is set; otherwise the demo fallback answers. **Firebase AI Logic / Gemini is retired — Firebase is no longer used by Android at all.**
 - **iOS:** Apple Intelligence (on-device) → Claude → demo. Same Claude model id — keep it in sync.
-- **Parity rule:** keep the **system prompt, tone, and demo/canned replies word-for-word identical** across platforms. They live in `core.ai.IrisPersona` (`SYSTEM_PROMPT` + `demoResponse`). One wording change from the old Gemini build: the "no AI configured" hint now reads *"Add your Anthropic API key to turn on live AI."* — match it on iOS.
-- **Privacy:** only the conversation + the static `SYSTEM_PROMPT` are sent to Claude. The on-device learned profile (Phase F) must **never** be put in the request.
+- **RAG grounding (both tiers):** before each turn, `core.rag.ContextAssembler` retrieves KB context (§7) and prepends it to the system prompt. **Tier-aware privacy gate:** the on-device tier may receive `PUBLIC` + `PERSONAL` context (trips/expenses/learned memory, stays on device); the **cloud (Claude) tier receives `PUBLIC` knowledge only** — never personal data or the learned profile. Enforced structurally + an assertion + unit tests.
+- **Parity rule:** keep the **system prompt, tone, and demo/canned replies word-for-word identical** across platforms. They live in `core.ai.IrisPersona` (`SYSTEM_PROMPT` + `demoResponse`). The RAG/learned blocks are *appended* to that shared prompt at runtime; the persona base stays identical. One wording change from the old Gemini build: the "no AI configured" hint reads *"Add your Anthropic API key to turn on live AI."* — match it on iOS.
+- **Privacy:** only the conversation + the static `SYSTEM_PROMPT` + **`PUBLIC`** KB context are sent to Claude. The on-device learned profile (`TravelProfile`, Phase F) and learned memory (`UserMemory`, §8) must **never** be put in a cloud request.
 - **Roles:** the app stores turns as `user`/`model` (`core.ai.AiMessage`); the Claude path maps `model → assistant` and drops any leading assistant turn so the request starts with `user`. Keep conversation content identical across platforms.
 
 ## 5. Design system (already aligned — keep it that way)
@@ -109,3 +111,25 @@ Canonical DDL: **`supabase/migrations/0001_init_trips_expenses.sql`**. Tables li
 - [ ] Supabase **anonymous** sign-in on first launch (§3).
 - [ ] IRIS system prompt + demo replies match Android verbatim (§4).
 - [ ] Confirm `AccentTag`/`GoldTag` and other renamed components are visually identical (§5).
+- [ ] On-device RAG KB: seed from the **same** versioned artifact + manifest, implement a **parity embedder** (same model id + dim + normalization), enforce the tier privacy gate (§7).
+- [ ] Implement `UserMemory` with the **same** frequency+recency decay (half-life ≈ 45 days); keep it PERSONAL/on-device only (§8).
+- [ ] Add an opt-in **speak-aloud** toggle (iOS `AVSpeechSynthesizer`), default off, speak-on-complete with sentence chunking (§9).
+
+## 7. On-device RAG knowledge base (IRIS grounding)
+
+- **What:** a `kb_chunks` table (Room on Android) of pre-embedded chunks. Two kinds: `PUBLIC` general-travel knowledge (visa/entry, baggage, packing, loyalty, etiquette…) shipped in the app, and `PERSONAL` chunks indexed on-device from the user's own trips/expenses.
+- **Artifact:** a pre-built SQLite DB bundled in assets (`iris_kb_v<n>.db`) + a `manifest.json` carrying `kb_version`, `embedder_id`, `embedding_dim`, `normalize`, `chunk_count`. Built by `tools/iris-kb` (a Python ingest→chunk→embed→eval pipeline; **RAG, not fine-tuning**). The app seeds once per `kb_version` (flag `kb_seeded_v<n>`, mirroring `trips_seeded_v2`).
+- **Embedder-parity constraint (critical):** documents are embedded offline with the **same model** the device runs (`MediaPipeTextEmbedder`, model id `use-v1`). The app refuses a KB whose manifest `embedder_id`/`dim` don't match, and drops any stored row from a stale model. **iOS must embed with the identical model + dim + normalization**, or retrieval silently fails.
+- **`kb_chunks` columns:** `id, text, source, sourceType (KB|USER|TOOL), sensitivity (PUBLIC|PERSONAL), embedding (little-endian float32 BLOB), dim, modelId, metadata (JSON), updatedAt`.
+- **Privacy rule:** `PUBLIC` chunks are shippable/regenerable and may ground any tier; `PERSONAL` chunks are device-local, never synced, never sent to a cloud LLM.
+
+## 8. On-device learned memory & preference loop
+
+- **What:** `core.intelligence.UserMemory` (persisted via `ModuleStateStore`, key `user_memory`) — recurring query topics, accept/dismiss stats per suggestion category, airline/hotel/cuisine affinity inferred from the ledgers, and time-of-day usage.
+- **Scoring:** frequency + recency with a **half-life ≈ 45 days** (`PreferenceScoring`); event signals accumulate, ledger-derived affinities are recomputed idempotently. Explainable, **no trained model**.
+- **Use:** feeds the proactive engine (anticipation + suppression of repeatedly-dismissed nudges) and, on the **on-device tier only**, a PERSONAL grounding block. **Never** sent to Claude.
+
+## 9. Voice output (TTS)
+
+- **What:** `core.voice.VoiceOutput` (Android `TextToSpeech`), the output mirror of `VoiceInput`. Opt-in via `UserPreferences.ttsEnabled` (**default off**); IRIS speaks a reply on completion, with sentence chunking under the ~4k-char TTS cap. A speaker toggle lives in the IRIS chat header.
+- **iOS parity:** `AVSpeechSynthesizer`, same opt-in default-off behavior and speak-on-complete.

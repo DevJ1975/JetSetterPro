@@ -33,6 +33,11 @@ coil = "2.7.0"
 work = "2.10.0"
 mapsCompose = "8.3.0"
 playServicesMaps = "19.2.0"
+# On-device AI. ML Kit GenAI Prompt API drives free-form Gemini Nano (AICore) inference; MediaPipe
+# tasks-text runs the on-device text embedder used for RAG retrieval. Both are device-gated and
+# degrade to no-op (Claude/RAG-off) where unsupported — see core/ai + core/rag.
+mlkitGenaiPrompt = "1.0.0-beta2"
+mediapipeTasksText = "0.10.21"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
@@ -79,6 +84,8 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai-prompt", version.ref = "mlkitGenaiPrompt" }
+mediapipe-tasks-text = { group = "com.google.mediapipe", name = "tasks-text", version.ref = "mediapipeTasksText" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }

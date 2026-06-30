@@ -20,8 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -46,6 +49,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jetsetter.pro.core.ai.NanoModelManager
 import com.jetsetter.pro.core.model.ThemePreference
 import com.jetsetter.pro.core.model.UserPreferences
 import com.jetsetter.pro.ui.components.AccentTag
@@ -73,6 +77,8 @@ fun MoreScreen(
         onHomeAirportChange = viewModel::setHomeAirport,
         onSearchQueryChange = viewModel::setSearchQuery,
         onOpenFeature = onOpenFeature,
+        onSetTtsEnabled = viewModel::setTtsEnabled,
+        onDownloadOnDeviceAi = viewModel::downloadOnDeviceModel,
     )
 }
 
@@ -89,6 +95,8 @@ private fun MoreContent(
     onHomeAirportChange: (String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onOpenFeature: (String) -> Unit,
+    onSetTtsEnabled: (Boolean) -> Unit = {},
+    onDownloadOnDeviceAi: () -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -138,6 +146,19 @@ private fun MoreContent(
                 LabeledField("Display name", prefs.displayName, "Your name", onDisplayNameChange)
                 Spacer(Modifier.height(spacing.medium))
                 LabeledField("Home airport", prefs.homeAirport, "e.g. LAS", onHomeAirportChange)
+            }
+        }
+
+        Section(title = "IRIS") {
+            JetCard(modifier = Modifier.fillMaxWidth()) {
+                ToggleRow(
+                    title = "Speak replies aloud",
+                    subtitle = "IRIS reads its answers using on-device text-to-speech.",
+                    checked = prefs.ttsEnabled,
+                    onCheckedChange = onSetTtsEnabled,
+                )
+                RowDivider()
+                NanoRow(state = state.nanoState, onDownload = onDownloadOnDeviceAi)
             }
         }
 
@@ -359,6 +380,76 @@ private fun FeatureRow(entry: FeatureEntry, onClick: () -> Unit) {
             tint = colors.textSecondary,
             modifier = Modifier.size(20.dp),
         )
+    }
+}
+
+/** A labelled on/off setting row with a Material switch. */
+@Composable
+private fun ToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val colors = JetTheme.colors
+    val spacing = JetTheme.spacing
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .minimumInteractiveComponentSize()
+            .clickable(role = Role.Switch) { onCheckedChange(!checked) }
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.small),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = JetTheme.typography.bodyMedium, color = colors.textPrimary)
+            Text(subtitle, style = JetTheme.typography.caption, color = colors.textSecondary)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = colors.accent),
+        )
+    }
+}
+
+/** On-device AI (Gemini Nano) status + a tap-to-download action when the model is available. */
+@Composable
+private fun NanoRow(state: NanoModelManager.State, onDownload: () -> Unit) {
+    val colors = JetTheme.colors
+    val spacing = JetTheme.spacing
+    val actionable = state is NanoModelManager.State.Downloadable || state is NanoModelManager.State.Failed
+    val status = when (state) {
+        is NanoModelManager.State.Ready -> "Ready — runs on this device, offline"
+        is NanoModelManager.State.Downloading -> "Downloading…"
+        is NanoModelManager.State.Downloadable -> "Available to download — tap to enable"
+        is NanoModelManager.State.Failed -> "Download failed — tap to retry"
+        is NanoModelManager.State.Unavailable -> "Not supported on this device (uses cloud IRIS)"
+        is NanoModelManager.State.Unknown -> "Checking availability…"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .minimumInteractiveComponentSize()
+            .then(if (actionable) Modifier.clickable(role = Role.Button) { onDownload() } else Modifier)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.small),
+    ) {
+        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("On-device AI (Gemini Nano)", style = JetTheme.typography.bodyMedium, color = colors.textPrimary)
+            Text(status, style = JetTheme.typography.caption, color = colors.textSecondary)
+        }
+        if (actionable) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = colors.textSecondary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 

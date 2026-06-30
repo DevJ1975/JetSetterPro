@@ -2,6 +2,7 @@ package com.jetsetter.pro.feature.more
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jetsetter.pro.core.ai.NanoModelManager
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.data.prefs.UserPreferencesRepository
 import com.jetsetter.pro.core.model.ThemePreference
@@ -32,6 +33,7 @@ sealed interface StartupState {
 class SettingsViewModel @Inject constructor(
     private val prefsRepository: UserPreferencesRepository,
     private val stateStore: ModuleStateStore,
+    private val nanoModelManager: NanoModelManager,
 ) : ViewModel() {
 
     val preferences: StateFlow<UserPreferences> =
@@ -55,8 +57,8 @@ class SettingsViewModel @Inject constructor(
 
     /** Combined screen state collected by [MoreScreen] via collectAsStateWithLifecycle. */
     val ui: StateFlow<MoreUiState> =
-        combine(preferences, _searchQuery) { prefs, query ->
-            MoreUiState(preferences = prefs, searchQuery = query)
+        combine(preferences, _searchQuery, nanoModelManager.state) { prefs, query, nano ->
+            MoreUiState(preferences = prefs, searchQuery = query, nanoState = nano)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MoreUiState())
 
     init {
@@ -66,11 +68,17 @@ class SettingsViewModel @Inject constructor(
                 ?.let { json -> runCatching { filterAdapter.fromJson(json) }.getOrNull() }
                 ?.let { saved -> _searchQuery.value = saved.searchQuery }
         }
+        // Refresh on-device-AI status so the IRIS section reflects reality on open.
+        viewModelScope.launch { nanoModelManager.ensureReady() }
     }
 
     fun setTheme(theme: ThemePreference) = viewModelScope.launch { prefsRepository.setTheme(theme) }
     fun setDisplayName(value: String) = viewModelScope.launch { prefsRepository.setDisplayName(value) }
     fun setHomeAirport(value: String) = viewModelScope.launch { prefsRepository.setHomeAirport(value) }
+    fun setTtsEnabled(value: Boolean) = viewModelScope.launch { prefsRepository.setTtsEnabled(value) }
+
+    /** User-initiated download of the on-device Gemini Nano model (the only thing that starts it). */
+    fun downloadOnDeviceModel() = viewModelScope.launch { nanoModelManager.requestDownload() }
 
     fun setSearchQuery(value: String) {
         _searchQuery.value = value

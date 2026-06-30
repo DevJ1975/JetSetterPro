@@ -1,0 +1,26 @@
+# IRIS knowledge-base build configuration.
+# kb_version MUST be bumped together with KbVersion.CURRENT in the Android app.
+kb_version: 1
+
+embedder:
+  # MUST equal MediaPipeTextEmbedder.MODEL_ID in the app (com.jetsetter.pro.core.rag).
+  id: use-v1
+  # Same .tflite the app bundles at app/src/main/assets/use_embedder.tflite.
+  model_path: models/use_embedder.tflite
+  # Informational; the real dimension is read from the model's output at build time.
+  dimension: 100
+  normalize: true
+
+chunk:
+  # Token counts are approximated by whitespace word count (no tokenizer dependency).
+  max_tokens: 250
+  overlap_tokens: 40
+
+output:
+  app_assets_dir: ../../app/src/main/assets
+  # Names are derived from kb_version: iris_kb_v<n>.db / iris_kb_v<n>.manifest.json
+
+eval:
+  recall_at: [1, 3, 5, 10]
+  recall5_threshold: 0.85
+  parity_epsilon: 0.0005

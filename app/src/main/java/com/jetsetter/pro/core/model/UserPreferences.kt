@@ -8,6 +8,8 @@ data class UserPreferences(
     val theme: ThemePreference = ThemePreference.DARK,
     /** First-run gate: false until the user finishes (or skips) onboarding. */
     val hasCompletedOnboarding: Boolean = false,
+    /** Opt-in: speak IRIS replies aloud (TTS). Off by default. */
+    val ttsEnabled: Boolean = false,
 )
 
 enum class ThemePreference { SYSTEM, LIGHT, DARK }

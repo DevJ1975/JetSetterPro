@@ -122,6 +122,11 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    androidResources {
+        // The on-device embedder model and the pre-built KB are read with mmap/random access at
+        // runtime, so they must stay uncompressed in the APK.
+        noCompress += listOf("tflite", "db")
+    }
 }
 
 kotlin {
@@ -187,6 +192,12 @@ dependencies {
     // falls back to a Compose-drawn map otherwise.
     implementation(libs.maps.compose)
     implementation(libs.play.services.maps)
+
+    // On-device AI — IRIS. ML Kit GenAI Prompt API runs free-form Gemini Nano (AICore) inference
+    // on capable devices; MediaPipe tasks-text runs the on-device embedder for RAG retrieval.
+    // Both are device-gated; IRIS falls back to the Claude tier / RAG-off where unsupported.
+    implementation(libs.mlkit.genai.prompt)
+    implementation(libs.mediapipe.tasks.text)
 
     // Test
     testImplementation(libs.junit)

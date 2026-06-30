@@ -32,6 +32,8 @@ data class HomeAlert(
     val title: String,
     val message: String,
     val severity: AlertSeverity,
+    /** Stable kind (e.g. "packing", "visa-entry") for learned accept/dismiss tracking. */
+    val category: String = "",
 )
 
 enum class AlertSeverity { WARNING, INFO }

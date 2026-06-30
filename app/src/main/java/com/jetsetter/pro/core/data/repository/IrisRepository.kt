@@ -6,6 +6,8 @@ import com.jetsetter.pro.core.ai.ClaudeEvent
 import com.jetsetter.pro.core.ai.IrisPersona
 import com.jetsetter.pro.core.ai.IrisToolDispatcher
 import com.jetsetter.pro.core.ai.OnDeviceAi
+import com.jetsetter.pro.core.rag.AiTier
+import com.jetsetter.pro.core.rag.ContextAssembler
 import com.jetsetter.pro.core.secrets.Secrets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +37,7 @@ class IrisRepository @Inject constructor(
     private val claude: ClaudeClient,
     private val tools: IrisToolDispatcher,
     private val onDevice: OnDeviceAi,
+    private val contextAssembler: ContextAssembler,
 ) {
     /**
      * Streams IRIS's reply token-by-token. [history] is the full conversation; the last entry is
@@ -63,11 +66,19 @@ class IrisRepository @Inject constructor(
         // Tier 1 — on-device (Phase C, Gemini Nano). Plain chat only: tools are not supported
         // on-device, so any turn needing tool use falls through to the Claude loop below. The
         // default binding reports unavailable, so this branch is a no-op until a real backend
-        // is supplied (see OnDeviceAi).
+        // is supplied (see OnDeviceAi). RAG context here may include PERSONAL grounding — it
+        // never leaves the device.
         if (onDevice.isAvailable()) {
-            onDevice.stream(IrisPersona.SYSTEM_PROMPT, history).collect { emit(it) }
+            val ctx = contextAssembler.assemble(lastUserText, AiTier.ON_DEVICE)
+            val system = IrisPersona.SYSTEM_PROMPT + ctx.systemBlock
+            onDevice.stream(system, history).collect { emit(it) }
             return@flow
         }
+
+        // Cloud tier grounding: PUBLIC knowledge only (the assembler refuses to include anything
+        // PERSONAL for CLOUD). Computed once and reused on every tool round so it persists.
+        val cloudCtx = contextAssembler.assemble(lastUserText, AiTier.CLOUD)
+        val systemForClaude = IrisPersona.SYSTEM_PROMPT + cloudCtx.systemBlock
 
         var streamedAny = false
         runCatching {
@@ -77,7 +88,7 @@ class IrisRepository @Inject constructor(
                 val assistantText = StringBuilder()
                 var stopReason: String? = null
 
-                claude.stream(key, IrisPersona.SYSTEM_PROMPT, JSONArray(conversation), tools.schema).collect { event ->
+                claude.stream(key, systemForClaude, JSONArray(conversation), tools.schema).collect { event ->
                     when (event) {
                         is ClaudeEvent.Text -> {
                             streamedAny = true

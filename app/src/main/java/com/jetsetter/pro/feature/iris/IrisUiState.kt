@@ -8,6 +8,8 @@ data class IrisUiState(
     val messages: List<ChatMessage> = emptyList(),
     val isThinking: Boolean = false,
     val suggestions: List<String> = DEFAULT_SUGGESTIONS,
+    /** Opt-in: speak IRIS replies aloud (TTS), persisted in UserPreferences. */
+    val ttsEnabled: Boolean = false,
 )
 
 /** Quick-tap prompts surfaced above the input bar; tapping one sends it straight to IRIS. */

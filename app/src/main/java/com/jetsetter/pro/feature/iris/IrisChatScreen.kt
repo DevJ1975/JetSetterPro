@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -38,6 +39,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
+import com.jetsetter.pro.core.voice.VoiceOutput
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,7 +82,11 @@ import com.jetsetter.pro.ui.theme.JetTheme
 @Composable
 fun IrisChatScreen(viewModel: IrisChatViewModel = hiltViewModel()) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
-    IrisChatContent(state = state, onSend = viewModel::send)
+    IrisChatContent(
+        state = state,
+        onSend = viewModel::send,
+        onSetTtsEnabled = viewModel::setTtsEnabled,
+    )
 }
 
 /**
@@ -89,11 +97,31 @@ fun IrisChatScreen(viewModel: IrisChatViewModel = hiltViewModel()) {
 private fun IrisChatContent(
     state: IrisUiState,
     onSend: (String) -> Unit,
+    onSetTtsEnabled: (Boolean) -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
+    val context = LocalContext.current
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    // Speak IRIS replies aloud when the user has opted in. One engine per screen, released on dispose.
+    val voiceOutput = remember { VoiceOutput(context) }
+    DisposableEffect(Unit) { onDispose { voiceOutput.shutdown() } }
+    // Don't read aloud whatever's already on screen at first composition (e.g. the greeting).
+    var spokenThrough by remember { mutableStateOf(state.messages.size) }
+    LaunchedEffect(state.isThinking) {
+        if (state.isThinking) {
+            voiceOutput.stop()
+        } else if (state.ttsEnabled) {
+            val last = state.messages.lastOrNull()
+            if (state.messages.size > spokenThrough && last != null && !last.fromUser && last.text.isNotBlank()) {
+                voiceOutput.speak(last.text)
+            }
+            spokenThrough = state.messages.size
+        }
+    }
+    LaunchedEffect(state.ttsEnabled) { if (!state.ttsEnabled) voiceOutput.stop() }
 
     // Auto-scroll to the newest message (or the typing bubble) whenever the list grows.
     LaunchedEffect(state.messages.size, state.isThinking) {
@@ -128,6 +156,14 @@ private fun IrisChatContent(
         ) {
             Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = colors.accent)
             Text("IRIS", style = JetTheme.typography.pageTitle, color = colors.textPrimary)
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { onSetTtsEnabled(!state.ttsEnabled) }) {
+                Icon(
+                    imageVector = if (state.ttsEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                    contentDescription = if (state.ttsEnabled) "Mute IRIS" else "Speak replies aloud",
+                    tint = if (state.ttsEnabled) colors.accent else colors.textSecondary,
+                )
+            }
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
