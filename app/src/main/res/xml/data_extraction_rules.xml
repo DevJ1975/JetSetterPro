@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Disables cloud backup and device-to-device transfer of app data (Android 12+).
+  The local Room DB (trips/expenses) and DataStore hold user data — including, until the
+  vault-encryption work lands, sensitive vault content — so none of it should leave the device
+  via backup or transfer. Paired with android:allowBackup="false" (pre-12) in the manifest.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

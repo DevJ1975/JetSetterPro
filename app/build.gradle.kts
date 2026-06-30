@@ -81,8 +81,26 @@ android {
             isDebuggable = true
         }
         release {
-            // Real release keystore when configured; fall back to debug signing otherwise.
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // Sign with the real release keystore when configured. If it's absent we do NOT
+            // silently fall back to the debug key — that produces a "release" build signed with a
+            // throwaway, world-known key (anyone can re-sign/impersonate it, and it can't be
+            // updated over a Play release). Local/CI machines without the keystore can opt in to
+            // debug signing with -PallowDebugSigning; otherwise the release variant is left
+            // UNSIGNED so it can never masquerade as a distributable build.
+            val releaseSigning = signingConfigs.findByName("release")
+            when {
+                releaseSigning != null -> signingConfig = releaseSigning
+                project.hasProperty("allowDebugSigning") -> {
+                    signingConfig = signingConfigs.getByName("debug")
+                    project.logger.warn(
+                        "WARNING: release variant signed with the DEBUG key (-PallowDebugSigning). Do NOT distribute this build.",
+                    )
+                }
+                else -> project.logger.warn(
+                    "WARNING: no release keystore (keystore.properties missing); the release variant will be UNSIGNED. " +
+                        "Provide the keystore, or pass -PallowDebugSigning for a local debug-signed build.",
+                )
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

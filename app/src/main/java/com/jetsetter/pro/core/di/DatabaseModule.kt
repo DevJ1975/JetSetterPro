@@ -20,7 +20,12 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): JetSetterDatabase =
         Room.databaseBuilder(context, JetSetterDatabase::class.java, "jetsetter.db")
-            .fallbackToDestructiveMigration()
+            // Destroy-and-recreate only on DOWNGRADE (e.g. a dev installing an older build). On an
+            // UPGRADE we deliberately do NOT fall back to a destructive migration: a missing
+            // migration now fails loudly instead of silently wiping the user's trips/expenses.
+            // Add a Room Migration for each future schema bump (and enable exportSchema to
+            // author/verify them — see app/build.gradle.kts).
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
 
     @Provides
