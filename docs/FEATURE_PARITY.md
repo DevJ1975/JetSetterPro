@@ -97,6 +97,24 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 - **⬜ live-integration TODO:** swap each module's mock repository for its real API as keys
   arrive; add Room persistence + crypto/biometric for the vaults; real Play Billing for Pro.
 
+### Demo mode (investor/field presentations)
+
+- **Demo mode switch** — More → Presentation. Enabling it runs `core.data.demo.DemoSeeder`:
+  wipes `ModuleStateStore`, resets Room trips/expenses to `MockData`, fills profile blanks with
+  the demo persona, and arms a **scripted disruption push** (~25s later, via the now-implemented
+  `DisruptionMonitorWorker` + `core.notifications.JetNotifier`). "Reset demo data" restores the
+  pristine dataset any time.
+- **Check-In grew an interactive seat map** (`feature.checkin.SeatMap` + `SeatMapSheet`):
+  check-in flows through seat selection, issued passes support "Change seat" while the window is
+  open, and the chosen seat persists (`PersistedCheckIn.seat`).
+- **Disruption Monitor posts a real notification** at its "Traveler notified" timeline step
+  (permission requested in-context on the screen; silently skipped when denied).
+- **Persona consistency:** seed data across Check-In, Travel Wallet, Disruption, Flight Tracker,
+  Home, and the IRIS demo replies all describe the same traveler — DL 1423 LAS→ATL, First
+  cabin seat 3A, gate C22, the Atlanta board-meeting trip, $1,812.75 expenses. Keep new seed
+  data on this persona. IRIS demo replies were reworded (presentation-safe, no setup hints) —
+  this deviates from the older iOS copy on purpose; converge iOS onto the new wording.
+
 ---
 
 ## 2. Per-module Android scaffolding convention

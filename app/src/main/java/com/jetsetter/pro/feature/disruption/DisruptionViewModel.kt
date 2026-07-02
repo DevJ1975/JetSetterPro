@@ -1,8 +1,11 @@
 package com.jetsetter.pro.feature.disruption
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jetsetter.pro.core.notifications.JetNotifier
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DisruptionViewModel @Inject constructor(
     private val repository: DisruptionRepository,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(DisruptionUiState(isLoading = true))
@@ -72,6 +76,11 @@ class DisruptionViewModel @Inject constructor(
                 setStepStatus(index, DisruptionStepStatus.ACTIVE)
                 delay(STEP_DELAY_MS)
                 setStepStatus(index, DisruptionStepStatus.DONE)
+                // "Traveler notified" is real, not just timeline copy: a push lands in the shade
+                // (silently skipped when the notification permission hasn't been granted).
+                if (_ui.value.responseSteps.getOrNull(index)?.id == "step-notified") {
+                    postDisruptionNotification()
+                }
             }
             // The confirmation step is "active" while it waits on the traveler.
             val confirmIndex = _ui.value.responseSteps.lastIndex
@@ -130,6 +139,18 @@ class DisruptionViewModel @Inject constructor(
                 DisruptionDecision(selectedAlternativeId = chosen?.id, isRebooked = true),
             )
         }
+    }
+
+    /** Builds the shade alert from the monitored flight so it can't contradict the screen. */
+    private fun postDisruptionNotification() {
+        val flight = _ui.value.monitoredFlight ?: return
+        val alternatives = _ui.value.alternatives
+        JetNotifier.postDisruptionAlert(
+            context = appContext,
+            title = "${flight.flightNumber} delayed ${durationLabel(flight.delayMinutes)}",
+            text = "${flight.origin} → ${flight.destination} now departs ${flight.revisedDeparture}. " +
+                "IRIS found ${alternatives.size} rebooking options — open Trip Disruption to confirm one.",
+        )
     }
 
     /** Marks all steps DONE and rewrites the final step into the confirmation receipt. */

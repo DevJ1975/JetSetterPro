@@ -1,5 +1,10 @@
 package com.jetsetter.pro.feature.more
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -21,8 +26,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -44,8 +54,10 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jetsetter.pro.BuildConfig
 import com.jetsetter.pro.core.model.ThemePreference
 import com.jetsetter.pro.core.model.UserPreferences
 import com.jetsetter.pro.ui.components.AccentTag
@@ -73,6 +85,8 @@ fun MoreScreen(
         onHomeAirportChange = viewModel::setHomeAirport,
         onSearchQueryChange = viewModel::setSearchQuery,
         onOpenFeature = onOpenFeature,
+        onSetDemoMode = viewModel::setDemoMode,
+        onResetDemoData = viewModel::resetDemoData,
     )
 }
 
@@ -89,6 +103,8 @@ private fun MoreContent(
     onHomeAirportChange: (String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onOpenFeature: (String) -> Unit,
+    onSetDemoMode: (Boolean) -> Unit = {},
+    onResetDemoData: () -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -141,6 +157,16 @@ private fun MoreContent(
             }
         }
 
+        Section(title = "Presentation") {
+            JetCard(modifier = Modifier.fillMaxWidth()) {
+                DemoModeSection(
+                    demoMode = prefs.demoMode,
+                    onSetDemoMode = onSetDemoMode,
+                    onResetDemoData = onResetDemoData,
+                )
+            }
+        }
+
         FeaturesSection(
             query = state.searchQuery,
             onSearchQueryChange = onSearchQueryChange,
@@ -151,10 +177,110 @@ private fun MoreContent(
             JetCard(modifier = Modifier.fillMaxWidth()) {
                 Text("JetSetter Pro for Android", style = JetTheme.typography.cardTitle, color = colors.textPrimary)
                 Spacer(Modifier.height(spacing.xsmall))
-                Text("Version 0.1.0", style = JetTheme.typography.bodyMedium, color = colors.textSecondary)
+                Text("Version ${BuildConfig.VERSION_NAME}", style = JetTheme.typography.bodyMedium, color = colors.textSecondary)
                 Text("Trainovate Technologies LLC", style = JetTheme.typography.caption, color = colors.textSecondary)
             }
         }
+    }
+}
+
+/**
+ * Demo-mode controls: the master switch plus a "reset demo data" action behind a confirmation
+ * dialog (it wipes tester-entered data). Flipping the switch on first requests the notification
+ * permission (API 33+) so the scripted disruption push — armed by the seeder ~25s later — can
+ * actually land in the shade during a presentation.
+ */
+@Composable
+private fun DemoModeSection(
+    demoMode: Boolean,
+    onSetDemoMode: (Boolean) -> Unit,
+    onResetDemoData: () -> Unit,
+) {
+    val colors = JetTheme.colors
+    val spacing = JetTheme.spacing
+    val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    var showResetDialog by remember { mutableStateOf(false) }
+
+    // Ask for POST_NOTIFICATIONS before enabling, then enable regardless of the answer —
+    // JetNotifier silently skips posting when the permission is denied.
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { onSetDemoMode(true) }
+    val enableDemo = {
+        val needsPermission = Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        if (needsPermission) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            onSetDemoMode(true)
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Demo mode", style = JetTheme.typography.cardTitle, color = colors.textPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Curated traveler data for live presentations — includes a scripted flight-disruption alert.",
+                style = JetTheme.typography.caption,
+                color = colors.textSecondary,
+            )
+        }
+        Spacer(Modifier.width(spacing.small))
+        Switch(
+            checked = demoMode,
+            onCheckedChange = { enabled ->
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                if (enabled) enableDemo() else onSetDemoMode(false)
+            },
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = colors.accent,
+                checkedThumbColor = Color.White,
+            ),
+        )
+    }
+
+    Spacer(Modifier.height(spacing.medium))
+    Text(
+        "Reset demo data",
+        style = JetTheme.typography.bodyMedium,
+        color = colors.accent,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { showResetDialog = true }
+            .semantics { role = Role.Button }
+            .padding(vertical = 6.dp, horizontal = 2.dp),
+    )
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            containerColor = colors.surface,
+            title = { Text("Reset demo data?", color = colors.textPrimary) },
+            text = {
+                Text(
+                    "Every module returns to its pristine demo dataset. Trips, expenses, check-ins, " +
+                        "and any changes you made will be replaced.",
+                    color = colors.textSecondary,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showResetDialog = false
+                    onResetDemoData()
+                }) { Text("Reset", color = colors.danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text("Cancel", color = colors.textSecondary)
+                }
+            },
+        )
     }
 }
 

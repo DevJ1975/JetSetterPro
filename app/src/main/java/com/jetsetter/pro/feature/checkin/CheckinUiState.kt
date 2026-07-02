@@ -10,7 +10,12 @@ data class CheckinUiState(
     val nowMillis: Long = System.currentTimeMillis(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    /** Flight whose seat map is currently open (check-in or seat change); null = sheet closed. */
+    val seatPickerFlightId: String? = null,
 ) {
+    val seatPickerFlight: CheckInFlight?
+        get() = flights.firstOrNull { it.id == seatPickerFlightId }
+
     val checkedInCount: Int get() = flights.count { it.isCheckedIn }
 
     /** Flights whose window is open right now (regardless of whether they're checked in). */

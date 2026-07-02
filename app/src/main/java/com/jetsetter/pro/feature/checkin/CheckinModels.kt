@@ -122,6 +122,8 @@ data class PersistedCheckIn(
     val position: Int,
     val cabinLabel: String,
     val checkedInAtMillis: Long,
+    /** Seat held at check-in (seat-map selection). Blank in pre-seat-map records → keep the default. */
+    val seat: String = "",
 )
 
 /** "2d 4h", "4h 12m", "45m", or "0m" for non-positive deltas. */
