@@ -7,6 +7,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -18,10 +20,16 @@ import com.jetsetter.pro.R
  * `UNUserNotificationCenter` path. Stateless (`object`) so both the ViewModel layer and
  * WorkManager workers can call it without DI plumbing. Silently no-ops when the runtime
  * notification permission (API 33+) hasn't been granted or notifications are disabled.
+ *
+ * Every alert on this channel — delay, gate change, cancellation, rebooking — plays the cabin
+ * "fasten seatbelt" chime (`res/raw/cabin_chime.wav`) instead of the default notification sound.
  */
 object JetNotifier {
 
-    private const val CHANNEL_ID = "disruption_alerts"
+    // _v2: a channel's sound is locked in at creation, so shipping the cabin chime required a new
+    // channel id (the old default-sound channel is deleted in ensureChannel).
+    private const val CHANNEL_ID = "disruption_alerts_v2"
+    private const val LEGACY_CHANNEL_ID = "disruption_alerts"
     const val DISRUPTION_NOTIFICATION_ID = 1423
 
     /** True when a posted notification would actually be shown. */
@@ -73,14 +81,28 @@ object JetNotifier {
     private fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < 26) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // Retire the pre-chime channel so installs that created it don't keep the default sound.
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
                 "Disruption alerts",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Flight delays, cancellations, and rebooking updates"
+                description = "Flight delays, gate changes, cancellations, and rebooking updates"
+                setSound(
+                    chimeUri(context),
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                enableVibration(true)
             },
         )
     }
+
+    /** The bundled cabin "fasten seatbelt" chime, addressed as a resource URI. */
+    private fun chimeUri(context: Context): Uri =
+        Uri.parse("android.resource://${context.packageName}/${R.raw.cabin_chime}")
 }

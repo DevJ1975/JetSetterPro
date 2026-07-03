@@ -5,6 +5,7 @@ import com.jetsetter.pro.core.data.repository.TripRepository
 import com.jetsetter.pro.core.model.Expense
 import com.jetsetter.pro.core.model.ExpenseCategory
 import com.jetsetter.pro.core.model.Trip
+import com.jetsetter.pro.feature.departureoptimizer.DepartureoptimizerRepository
 import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,6 +26,7 @@ import javax.inject.Singleton
 class IrisToolDispatcher @Inject constructor(
     private val tripRepository: TripRepository,
     private val expenseRepository: ExpenseRepository,
+    private val departureRepository: DepartureoptimizerRepository,
 ) {
     suspend fun execute(name: String, input: JSONObject): String = when (name) {
         "add_trip" -> addTrip(input)
@@ -32,7 +34,33 @@ class IrisToolDispatcher @Inject constructor(
         "get_expense_summary" -> expenseSummary()
         "list_trips" -> listTrips()
         "mark_packed" -> markPacked(input)
+        "get_departure_briefing" -> departureBriefing()
         else -> "Unknown tool: $name"
+    }
+
+    /**
+     * The when-to-leave briefing: leave-by time plus every live factor (drive/traffic, TSA,
+     * weather) from the Departure Optimizer, so IRIS can narrate "when to leave and why" with the
+     * exact numbers the optimizer screen shows.
+     */
+    private suspend fun departureBriefing(): String {
+        val est = departureRepository.load()
+        return "Flight ${est.flightNumber} (${est.route}) departs ${clock(est.departureMinuteOfDay)} " +
+            "from ${est.terminal}, ${est.airport}. Recommended leave-by: ${clock(est.leaveByMinuteOfDay)} " +
+            "(status: ${est.status.label}). Factors: ${est.driveMinutes}-min drive with " +
+            "${est.trafficRisk.label.lowercase(Locale.US)} traffic, ${est.parkingBufferMinutes}-min parking buffer, " +
+            "${est.tsaWaitMinutes}-min TSA wait (${est.securityRisk.label.lowercase(Locale.US)}), " +
+            "${est.gateBufferMinutes}-min gate buffer. Weather for the drive: ${est.weatherSummary} " +
+            "(${est.weatherRisk.label.lowercase(Locale.US)} risk). The Departure Optimizer screen has a " +
+            "Navigate button that opens the in-app route map and guidance to the airport."
+    }
+
+    /** Formats minutes-since-midnight as a 12-hour clock, e.g. 319 -> "5:19 AM". */
+    private fun clock(minutesSinceMidnight: Int): String {
+        val m = ((minutesSinceMidnight % 1440) + 1440) % 1440
+        val hour24 = m / 60
+        val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
+        return String.format(Locale.US, "%d:%02d %s", hour12, m % 60, if (hour24 < 12) "AM" else "PM")
     }
 
     private suspend fun addTrip(input: JSONObject): String {
@@ -148,6 +176,16 @@ class IrisToolDispatcher @Inject constructor(
             tool(
                 name = "list_trips",
                 description = "List the user's trips with their dates and destinations. Use when asked what trips they have.",
+                properties = JSONObject(),
+                required = emptyList(),
+            ),
+        )
+        .put(
+            tool(
+                name = "get_departure_briefing",
+                description = "Get the traveler's departure plan for their next flight: recommended leave-by time, " +
+                    "drive time and traffic, TSA wait, weather conditions, and buffers. Use when asked when to " +
+                    "leave, about traffic or weather for the trip, or how to get to the airport.",
                 properties = JSONObject(),
                 required = emptyList(),
             ),

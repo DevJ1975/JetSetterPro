@@ -12,6 +12,7 @@ data class IrisUiState(
 
 /** Quick-tap prompts surfaced above the input bar; tapping one sends it straight to IRIS. */
 val DEFAULT_SUGGESTIONS: List<String> = listOf(
+    "When should I leave?",
     "What's my gate?",
     "Help me pack",
     "Any delays?",

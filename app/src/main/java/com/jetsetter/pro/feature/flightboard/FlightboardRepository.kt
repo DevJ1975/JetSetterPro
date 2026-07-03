@@ -20,8 +20,10 @@ class FlightboardRepository @Inject constructor() {
 
     private val flights: List<FlightBoardItem> = listOf(
         // Departures
-        FlightBoardItem("d1", "06:15", "DL 1423", "Delta", "Atlanta", "C22", "T1", FlightBoardStatus.BOARDING, FlightBoardDirection.DEPARTURES),
+        // Persona note: DL 1423 must match the rest of the app — 7:00 AM, Terminal 3, gate C22,
+        // and DELAYED per the Disruption Monitor's weather-hold story.
         FlightBoardItem("d2", "06:50", "AA 188", "American", "Dallas/Fort Worth", "B14", "T1", FlightBoardStatus.ON_TIME, FlightBoardDirection.DEPARTURES),
+        FlightBoardItem("d1", "07:00", "DL 1423", "Delta", "Atlanta", "C22", "T3", FlightBoardStatus.DELAYED, FlightBoardDirection.DEPARTURES),
         FlightBoardItem("d3", "07:30", "UA 642", "United", "Chicago O'Hare", "D55", "T3", FlightBoardStatus.ON_TIME, FlightBoardDirection.DEPARTURES),
         FlightBoardItem("d4", "08:05", "WN 2210", "Southwest", "Denver", "B22", "T1", FlightBoardStatus.DELAYED, FlightBoardDirection.DEPARTURES),
         FlightBoardItem("d5", "09:40", "AS 615", "Alaska", "Seattle", "C8", "T1", FlightBoardStatus.ON_TIME, FlightBoardDirection.DEPARTURES),

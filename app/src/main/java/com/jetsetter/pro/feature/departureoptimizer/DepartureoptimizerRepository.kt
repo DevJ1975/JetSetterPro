@@ -42,19 +42,23 @@ class DepartureoptimizerRepository @Inject constructor(
     }
 
     /**
-     * Re-roll the live, variable estimates (drive + security wait) and recompute risk buckets.
-     * Personal buffers and the reference clock are preserved. The small [delay] simulates a
-     * refresh round-trip so the UI can show a spinner.
+     * Re-roll the live, variable estimates (drive, security wait, weather) and recompute risk
+     * buckets. Personal buffers and the reference clock are preserved. The small [delay] simulates
+     * a refresh round-trip so the UI can show a spinner.
      */
     suspend fun rollEstimate(): DepartureOptimizerEstimate {
         delay(550)
         val drive = Random.nextInt(22, 53)
         val tsa = Random.nextInt(8, 45)
+        val weather = WEATHER_CONDITIONS[Random.nextInt(WEATHER_CONDITIONS.size)]
         current = current.copy(
             driveMinutes = drive,
             tsaWaitMinutes = tsa,
             trafficRisk = bucket(drive, lowMax = 30, moderateMax = 45),
             securityRisk = bucket(tsa, lowMax = 20, moderateMax = 35),
+            weatherLabel = weather.label,
+            weatherTempF = Random.nextInt(weather.tempRange.first, weather.tempRange.last + 1),
+            weatherRisk = weather.risk,
         )
         return current
     }
@@ -82,5 +86,15 @@ class DepartureoptimizerRepository @Inject constructor(
 
     private companion object {
         const val PREFS_KEY = "departureoptimizer_prefs"
+
+        /** Realistic Las Vegas morning conditions the mock feed rolls between. */
+        data class WeatherOption(val label: String, val tempRange: IntRange, val risk: DepartureOptimizerRisk)
+        val WEATHER_CONDITIONS = listOf(
+            WeatherOption("Clear skies", 68..92, DepartureOptimizerRisk.LOW),
+            WeatherOption("Partly cloudy", 66..88, DepartureOptimizerRisk.LOW),
+            WeatherOption("Gusty winds", 64..84, DepartureOptimizerRisk.MODERATE),
+            WeatherOption("Haze", 70..90, DepartureOptimizerRisk.MODERATE),
+            WeatherOption("Thunderstorms nearby", 62..78, DepartureOptimizerRisk.HIGH),
+        )
     }
 }
