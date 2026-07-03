@@ -32,6 +32,16 @@ object IrisPersona {
             "For your 3-day Atlanta trip: a suit, the printed board deck, laptop + charger, and your passport. Want a weather-based layer suggestion?"
         prompt.contains("expense", ignoreCase = true) ->
             "You're at \$1,812.75 across 4 items this trip. The Delta airfare (\$1,290) is the largest. Shall I export to Brex?"
+        prompt.contains("leave", ignoreCase = true) || prompt.contains("traffic", ignoreCase = true) ||
+            prompt.contains("navigate", ignoreCase = true) || prompt.contains("drive", ignoreCase = true) ->
+            "Leave by 5:19 AM for your 7:00 AM departure: it's a 34-minute drive to Harry Reid Intl " +
+                "in moderate traffic, 15 minutes to park, TSA is running 22 minutes, plus your 30-minute " +
+                "gate buffer. Clear skies, 74°F for the drive. Open Departure Optimizer and tap Navigate " +
+                "for GPS turn-by-turn."
+        prompt.contains("weather", ignoreCase = true) ->
+            "Las Vegas is clear and 74°F for your drive to the airport. Atlanta is the one to watch — " +
+                "a weather hold there is what's delaying DL 1423. I'm tracking both and will ping you if " +
+                "your leave-by time moves."
         prompt.contains("seat", ignoreCase = true) || prompt.contains("check", ignoreCase = true) ->
             "Check-in for DL 1423 is open now. You're holding seat 3A in First — head to Check-In " +
                 "to confirm it (or pick a new seat from the map) and I'll issue your boarding pass."

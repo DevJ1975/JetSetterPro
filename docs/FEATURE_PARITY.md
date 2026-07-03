@@ -109,11 +109,23 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
   open, and the chosen seat persists (`PersistedCheckIn.seat`).
 - **Disruption Monitor posts a real notification** at its "Traveler notified" timeline step
   (permission requested in-context on the screen; silently skipped when denied).
+- **Demo mode is also flippable from the Home header** — an alpha-only `DEMO` chip
+  (`feature.home.HomeScreen`) mirrors the More → Presentation switch (same `DemoSeeder` path,
+  same in-context notification-permission request) so a presenter never leaves the dashboard.
+- **Departure Optimizer grew the GPS + conditions loop:** a **Navigate** button hands off to
+  Google Maps turn-by-turn (`google.navigation:` intent, browser-URL fallback — real device GPS,
+  no API key), and the live estimate now rolls **weather conditions** (label + °F + risk) shown
+  in the LIVE CONDITIONS card next to traffic and TSA.
+- **IRIS gives the departure briefing:** demo-tier replies for "when should I leave / traffic /
+  navigate / weather" narrate the optimizer's numbers (leave by 5:19 AM, 34-min drive, TSA 22m,
+  clear 74°F), a "When should I leave?" suggestion chip was added, and the live Claude tier has a
+  `get_departure_briefing` tool that reads `DepartureoptimizerRepository` for the same story.
 - **Persona consistency:** seed data across Check-In, Travel Wallet, Disruption, Flight Tracker,
-  Home, and the IRIS demo replies all describe the same traveler — DL 1423 LAS→ATL, First
-  cabin seat 3A, gate C22, the Atlanta board-meeting trip, $1,812.75 expenses. Keep new seed
-  data on this persona. IRIS demo replies were reworded (presentation-safe, no setup hints) —
-  this deviates from the older iOS copy on purpose; converge iOS onto the new wording.
+  Home, Departure Optimizer, and the IRIS demo replies all describe the same traveler — DL 1423
+  LAS→ATL, First cabin seat 3A, gate C22, the Atlanta board-meeting trip, $1,812.75 expenses,
+  a 7:00 AM departure with a 5:19 AM leave-by. Keep new seed data on this persona. IRIS demo
+  replies were reworded (presentation-safe, no setup hints) — this deviates from the older iOS
+  copy on purpose; converge iOS onto the new wording.
 
 ---
 

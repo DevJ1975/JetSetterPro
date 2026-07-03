@@ -87,20 +87,28 @@ to another open seat, confirm → boarding pass issued with zone, boarding posit
 seat. Show **Change seat** on the issued pass, and the other flights' windows (one opens later,
 one closed) to show the logic is real, not canned buttons.
 
-**Beat 4 — IRIS, the AI concierge.** IRIS tab. Ask: *"Is my flight delayed?"* → she answers with
-the exact DL 1423 delay story and points at rebooking. Then *"What should I pack?"* and
-*"How are my expenses?"* — every answer matches what's on the other screens. (With an Anthropic
-key configured she's a live LLM with tool-calling into trips/expenses; the demo replies work
-offline.)
+**Beat 4 — Departure Optimizer + GPS.** Features → **Departure Optimizer**. The leave-by math is
+transparent: 7:00 AM departure minus drive, parking, TSA, and gate buffers = **leave by 5:19 AM**,
+with LIVE CONDITIONS showing traffic, security, *and weather* risk. Tap **Re-roll** to show the
+numbers move like a live feed — then tap **Navigate to Harry Reid Intl**: the phone's real GPS
+opens Google Maps turn-by-turn to the airport. (On the demo phone, have Maps installed and
+location on.)
 
-**Beat 5 — the breadth sweep (pick 3–4).** More → Features:
+**Beat 5 — IRIS, the AI concierge.** IRIS tab. Tap the *"When should I leave?"* chip → she gives
+the departure briefing: leave-by time, drive + traffic, TSA wait, and weather, matching the
+optimizer screen. Then *"Is my flight delayed?"* → the exact DL 1423 delay story pointing at
+rebooking; *"What should I pack?"*, *"How are my expenses?"* — every answer matches the other
+screens. (With an Anthropic key configured she's a live LLM with tool-calling into
+trips/expenses/departure plan; the demo replies work offline.)
+
+**Beat 6 — the breadth sweep (pick 3–4).** More → Features:
 - **Travel Wallet** — every pass in one place (note the boarding pass matches Check-In).
 - **Itinerary** — the full Atlanta trip with packing list; add an item live.
 - **Expenses** — the ledger behind the $1,812.75; add an expense live.
 - **Flight Tracker / Flight Board**, **Visa & Entry** (real rules engine), **Currency**,
   **Travel Intelligence**, **Carbon** — one line each: 30+ modules, one design system.
 
-**Beat 6 — close.** Toggle **Reset demo data** in front of them: the whole app snaps back to
+**Beat 7 — close.** Toggle **Reset demo data** in front of them: the whole app snaps back to
 pristine. Everything they saw ran offline on-device; every module goes live by dropping in an
 API key (the mock-first architecture slide).
 

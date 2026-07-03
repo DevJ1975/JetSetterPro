@@ -44,7 +44,15 @@ data class DepartureOptimizerEstimate(
     val gateBufferMinutes: Int = 30,
     val trafficRisk: DepartureOptimizerRisk = DepartureOptimizerRisk.MODERATE,
     val securityRisk: DepartureOptimizerRisk = DepartureOptimizerRisk.MODERATE,
+    /** Current conditions along the drive, e.g. "Clear skies". Rolled with the live estimates. */
+    val weatherLabel: String = "Clear skies",
+    val weatherTempF: Int = 74,
+    val weatherRisk: DepartureOptimizerRisk = DepartureOptimizerRisk.LOW,
 ) {
+    /** "Clear skies · 74°F" — the single string every surface (screen, IRIS) shows for weather. */
+    val weatherSummary: String
+        get() = "$weatherLabel · $weatherTempF°F"
+
     /** Total lead time the traveler needs before wheels-up, in minutes. */
     val totalLeadMinutes: Int
         get() = driveMinutes + parkingBufferMinutes + tsaWaitMinutes + gateBufferMinutes

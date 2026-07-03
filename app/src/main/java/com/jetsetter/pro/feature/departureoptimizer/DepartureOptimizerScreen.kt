@@ -1,5 +1,8 @@
 package com.jetsetter.pro.feature.departureoptimizer
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -25,9 +28,11 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -53,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -144,6 +150,7 @@ private fun DepartureOptimizerContent(
 
                 FlightHeaderCard(est)
                 LeaveByCard(est)
+                NavigateButton(est)
                 StatRow(est)
                 ArithmeticCard(est, onShowAdjust = onShowAdjust)
                 RiskCard(est)
@@ -263,6 +270,48 @@ private fun StatusPill(label: String, color: Color) {
     ) {
         Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(color))
         Text(label, style = JetTheme.typography.label, color = color)
+    }
+}
+
+/**
+ * Hands the drive off to the phone's GPS: launches Google Maps turn-by-turn navigation to the
+ * departure airport (`google.navigation:` intent), falling back to the universal maps URL in a
+ * browser when no maps app is installed. Uses the device's real GPS — no API key involved.
+ */
+@Composable
+private fun NavigateButton(est: DepartureOptimizerEstimate) {
+    val colors = JetTheme.colors
+    val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+
+    Button(
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            val destination = Uri.encode(est.airport)
+            val turnByTurn = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$destination&mode=d"))
+            try {
+                context.startActivity(turnByTurn)
+            } catch (_: ActivityNotFoundException) {
+                // No Google Maps — any browser can render the universal directions URL.
+                runCatching {
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$destination&travelmode=driving"),
+                        ),
+                    )
+                }
+            }
+        },
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colors.success,
+            contentColor = Color.White,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(Icons.Filled.Navigation, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(JetTheme.spacing.small))
+        Text("Navigate to ${est.airport.substringBefore(" (")}", style = JetTheme.typography.label, color = Color.White)
     }
 }
 
@@ -417,6 +466,8 @@ private fun RiskCard(est: DepartureOptimizerEstimate) {
         RiskRow(Icons.Filled.DirectionsCar, "Traffic", "${formatDuration(est.driveMinutes)} drive", est.trafficRisk)
         Spacer(Modifier.height(8.dp))
         RiskRow(Icons.Filled.Security, "Security", "${formatDuration(est.tsaWaitMinutes)} wait", est.securityRisk)
+        Spacer(Modifier.height(8.dp))
+        RiskRow(Icons.Filled.WbSunny, "Weather", est.weatherSummary, est.weatherRisk)
     }
 }
 
