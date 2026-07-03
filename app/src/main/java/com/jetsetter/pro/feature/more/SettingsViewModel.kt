@@ -2,6 +2,7 @@ package com.jetsetter.pro.feature.more
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jetsetter.pro.core.data.demo.DemoSeeder
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.data.prefs.UserPreferencesRepository
 import com.jetsetter.pro.core.model.ThemePreference
@@ -32,6 +33,7 @@ sealed interface StartupState {
 class SettingsViewModel @Inject constructor(
     private val prefsRepository: UserPreferencesRepository,
     private val stateStore: ModuleStateStore,
+    private val demoSeeder: DemoSeeder,
 ) : ViewModel() {
 
     val preferences: StateFlow<UserPreferences> =
@@ -71,6 +73,14 @@ class SettingsViewModel @Inject constructor(
     fun setTheme(theme: ThemePreference) = viewModelScope.launch { prefsRepository.setTheme(theme) }
     fun setDisplayName(value: String) = viewModelScope.launch { prefsRepository.setDisplayName(value) }
     fun setHomeAirport(value: String) = viewModelScope.launch { prefsRepository.setHomeAirport(value) }
+
+    /** Demo mode on/off. Enabling re-seeds everything and arms the scripted disruption push. */
+    fun setDemoMode(enabled: Boolean) = viewModelScope.launch {
+        if (enabled) demoSeeder.enableDemoMode() else demoSeeder.disableDemoMode()
+    }
+
+    /** Restores the pristine demo dataset without touching the demo-mode switch. */
+    fun resetDemoData() = viewModelScope.launch { demoSeeder.resetDemoData() }
 
     fun setSearchQuery(value: String) {
         _searchQuery.value = value

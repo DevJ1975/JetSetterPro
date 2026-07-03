@@ -39,4 +39,12 @@ class ModuleStateStore @Inject constructor(
 
     suspend fun read(key: String): String? =
         context.moduleStateDataStore.data.first()[stringPreferencesKey(key)]
+
+    /**
+     * Wipes every feature's persisted state in one shot. Used by demo-mode reset so all modules
+     * fall back to their pristine seed data on next read.
+     */
+    suspend fun clearAll() {
+        context.moduleStateDataStore.edit { it.clear() }
+    }
 }

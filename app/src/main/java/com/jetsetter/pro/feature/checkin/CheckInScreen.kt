@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,6 +75,9 @@ fun CheckInScreen(viewModel: CheckinViewModel = hiltViewModel()) {
     CheckInContent(
         state = state,
         onToggleCheckIn = viewModel::toggleCheckIn,
+        onOpenSeatPicker = viewModel::openSeatPicker,
+        onDismissSeatPicker = viewModel::dismissSeatPicker,
+        onConfirmSeat = viewModel::confirmSeat,
     )
 }
 
@@ -83,6 +89,9 @@ fun CheckInScreen(viewModel: CheckinViewModel = hiltViewModel()) {
 private fun CheckInContent(
     state: CheckinUiState,
     onToggleCheckIn: (CheckInFlight) -> Unit,
+    onOpenSeatPicker: (CheckInFlight) -> Unit = {},
+    onDismissSeatPicker: () -> Unit = {},
+    onConfirmSeat: (String) -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -135,10 +144,20 @@ private fun CheckInContent(
                             flight = flight,
                             nowMillis = state.nowMillis,
                             onToggle = { onToggleCheckIn(flight) },
+                            onOpenSeatPicker = { onOpenSeatPicker(flight) },
                         )
                     }
                 }
             }
+        }
+
+        // Seat map: opened by "Check in" (issues the pass on confirm) and by "Change seat".
+        state.seatPickerFlight?.let { flight ->
+            SeatMapSheet(
+                flight = flight,
+                onDismiss = onDismissSeatPicker,
+                onConfirm = onConfirmSeat,
+            )
         }
     }
 }
@@ -204,7 +223,12 @@ private fun SummaryCard(state: CheckinUiState) {
 }
 
 @Composable
-private fun FlightCard(flight: CheckInFlight, nowMillis: Long, onToggle: () -> Unit) {
+private fun FlightCard(
+    flight: CheckInFlight,
+    nowMillis: Long,
+    onToggle: () -> Unit,
+    onOpenSeatPicker: () -> Unit = {},
+) {
     val colors = JetTheme.colors
     val typography = JetTheme.typography
     val windowState = flight.windowState(nowMillis)
@@ -262,11 +286,21 @@ private fun FlightCard(flight: CheckInFlight, nowMillis: Long, onToggle: () -> U
 
         if (flight.isCheckedIn) {
             Spacer(Modifier.height(12.dp))
-            BoardingPassCard(flight = flight, nowMillis = nowMillis)
+            BoardingPassCard(
+                flight = flight,
+                nowMillis = nowMillis,
+                onChangeSeat = onOpenSeatPicker.takeIf { windowState == CheckInWindowState.OPEN },
+            )
         }
 
         Spacer(Modifier.height(16.dp))
-        ActionButton(flight = flight, windowState = windowState, nowMillis = nowMillis, onToggle = onToggle)
+        ActionButton(
+            flight = flight,
+            windowState = windowState,
+            nowMillis = nowMillis,
+            onToggle = onToggle,
+            onOpenSeatPicker = onOpenSeatPicker,
+        )
     }
 }
 
@@ -276,6 +310,7 @@ private fun ActionButton(
     windowState: CheckInWindowState,
     nowMillis: Long,
     onToggle: () -> Unit,
+    onOpenSeatPicker: () -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val typography = JetTheme.typography
@@ -284,6 +319,10 @@ private fun ActionButton(
     // Cancel is offered only while the window is still open; otherwise the issued pass is final.
     val checkedInClosed = flight.isCheckedIn && windowState != CheckInWindowState.OPEN
     if (checkedInClosed) return
+
+    // Checking in goes through the seat map (pick a seat → confirm issues the pass);
+    // cancelling remains a direct toggle.
+    val opensSeatPicker = !flight.isCheckedIn && windowState == CheckInWindowState.OPEN
 
     val config: ButtonConfig = when {
         flight.isCheckedIn -> ButtonConfig(
@@ -295,7 +334,7 @@ private fun ActionButton(
         )
 
         windowState == CheckInWindowState.OPEN -> ButtonConfig(
-            label = "Check in",
+            label = "Check in · choose seat",
             icon = Icons.Filled.FlightTakeoff,
             enabled = true,
             container = colors.accent,
@@ -322,7 +361,7 @@ private fun ActionButton(
     Button(
         onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            onToggle()
+            if (opensSeatPicker) onOpenSeatPicker() else onToggle()
         },
         enabled = config.enabled,
         modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -380,7 +419,11 @@ private fun WindowRow(flight: CheckInFlight, windowState: CheckInWindowState, no
 }
 
 @Composable
-private fun BoardingPassCard(flight: CheckInFlight, nowMillis: Long) {
+private fun BoardingPassCard(
+    flight: CheckInFlight,
+    nowMillis: Long,
+    onChangeSeat: (() -> Unit)? = null,
+) {
     val colors = JetTheme.colors
     val typography = JetTheme.typography
     val boarding = flight.boarding ?: return
@@ -426,12 +469,28 @@ private fun BoardingPassCard(flight: CheckInFlight, nowMillis: Long) {
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text(
-            if (sinceCheckIn < 60_000L) "Just checked in · Gate ${flight.gate}"
-            else "Checked in ${formatCountdown(sinceCheckIn)} ago · Gate ${flight.gate}",
-            style = typography.caption,
-            color = colors.textSecondary,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (sinceCheckIn < 60_000L) "Just checked in · Gate ${flight.gate}"
+                else "Checked in ${formatCountdown(sinceCheckIn)} ago · Gate ${flight.gate}",
+                style = typography.caption,
+                color = colors.textSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            // Seat changes stay open until the check-in window closes.
+            if (onChangeSeat != null) {
+                Text(
+                    "Change seat",
+                    style = typography.label,
+                    color = colors.accent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onChangeSeat() }
+                        .semantics { role = Role.Button }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
+        }
     }
 }
 
@@ -590,7 +649,7 @@ private fun CheckInContentPreview() {
                         destinationCode = "LHR",
                         destinationCity = "London Heathrow",
                         gate = "E15",
-                        seat = "12C",
+                        seat = "16C",
                         cabin = Cabin.MAIN,
                         departureAtMillis = now + 28 * hour,
                         checkInClosesBeforeMinutes = 90,
@@ -604,7 +663,7 @@ private fun CheckInContentPreview() {
                         destinationCode = "EWR",
                         destinationCity = "Newark",
                         gate = "B7",
-                        seat = "22F",
+                        seat = "9F",
                         cabin = Cabin.PREMIUM,
                         departureAtMillis = now + 30 * minute,
                         checkInClosesBeforeMinutes = 45,

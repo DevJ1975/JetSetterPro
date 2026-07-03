@@ -79,9 +79,50 @@ class CheckinViewModel @Inject constructor(
         saveRecords()
     }
 
+    /**
+     * Opens the seat map for [flight]. Allowed while the window is OPEN — both for the initial
+     * check-in (confirm issues the boarding pass) and for a seat change on an issued pass.
+     */
+    fun openSeatPicker(flight: CheckInFlight) {
+        val now = System.currentTimeMillis()
+        if (!flight.isWindowOpen(now)) return
+        _ui.update { it.copy(seatPickerFlightId = flight.id, nowMillis = now) }
+    }
+
+    fun dismissSeatPicker() {
+        _ui.update { it.copy(seatPickerFlightId = null) }
+    }
+
+    /**
+     * Commits the seat chosen in the seat map. If the traveler wasn't checked in yet this *is*
+     * the check-in (issues the boarding assignment); on an issued pass it just moves the seat.
+     * Guarded like [toggleCheckIn]: only honored while the window is OPEN.
+     */
+    fun confirmSeat(seat: String) {
+        val now = System.currentTimeMillis()
+        _ui.update { state ->
+            val target = state.flights.firstOrNull { it.id == state.seatPickerFlightId }
+                ?: return@update state.copy(seatPickerFlightId = null, nowMillis = now)
+            if (!target.isWindowOpen(now)) {
+                return@update state.copy(seatPickerFlightId = null, nowMillis = now)
+            }
+            val updated = target.copy(
+                seat = seat,
+                boarding = target.boarding ?: target.assignBoarding(now),
+            )
+            state.copy(
+                flights = state.flights.map { if (it.id == updated.id) updated else it },
+                seatPickerFlightId = null,
+                nowMillis = now,
+            )
+        }
+        saveRecords()
+    }
+
     private fun CheckInFlight.applyRecord(record: PersistedCheckIn?): CheckInFlight =
         if (record == null) this
         else copy(
+            seat = record.seat.ifBlank { seat },
             boarding = BoardingAssignment(
                 zone = record.zone,
                 position = record.position,
@@ -106,6 +147,7 @@ class CheckinViewModel @Inject constructor(
                     position = it.position,
                     cabinLabel = it.cabinLabel,
                     checkedInAtMillis = it.checkedInAtMillis,
+                    seat = flight.seat,
                 )
             }
         }

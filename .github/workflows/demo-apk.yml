@@ -1,0 +1,64 @@
+name: Demo APK
+
+# On-demand build for sharing the app OUTSIDE the Play Store (investor demos, field testing).
+# Run it from the Actions tab (any branch), then either:
+#   - download the workflow artifact (requires a GitHub login), or
+#   - grab the APK attached to the auto-created "demo-build-N" pre-release — the Releases page
+#     gives a direct .apk download link you can open from the phone's browser.
+# The APK is the debug variant (debug-keystore signed): sideloadable on any Android 8.0+ device,
+# NOT for Play distribution. See DEMO_GUIDE.md for install steps.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the demo pre-release + upload the APK asset
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # JDK 21 to satisfy gradle/gradle-daemon-jvm.properties (toolchainVersion=21).
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build (assembleDebug)
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Stamp APK name
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk \
+            "dist/JetSetterPro-demo-${{ github.run_number }}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jetsetter-pro-demo-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Publish demo pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "demo-build-${{ github.run_number }}" dist/*.apk \
+            --target "${{ github.sha }}" \
+            --prerelease \
+            --title "Demo build ${{ github.run_number }}" \
+            --notes "Sideloadable debug APK built from \`${{ github.ref_name }}\` (${{ github.sha }}). Install per DEMO_GUIDE.md — not for Play Store distribution."

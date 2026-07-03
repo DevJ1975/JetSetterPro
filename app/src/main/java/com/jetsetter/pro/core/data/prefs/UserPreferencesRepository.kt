@@ -25,6 +25,7 @@ class UserPreferencesRepository @Inject constructor(
         val homeAirport = stringPreferencesKey("home_airport")
         val theme = stringPreferencesKey("theme")
         val hasCompletedOnboarding = booleanPreferencesKey("has_completed_onboarding")
+        val demoMode = booleanPreferencesKey("demo_mode")
     }
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -34,6 +35,7 @@ class UserPreferencesRepository @Inject constructor(
             theme = runCatching { ThemePreference.valueOf(prefs[Keys.theme] ?: ThemePreference.DARK.name) }
                 .getOrDefault(ThemePreference.DARK),
             hasCompletedOnboarding = prefs[Keys.hasCompletedOnboarding] ?: false,
+            demoMode = prefs[Keys.demoMode] ?: false,
         )
     }
 
@@ -42,4 +44,5 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setTheme(value: ThemePreference) = context.dataStore.edit { it[Keys.theme] = value.name }
     suspend fun setHasCompletedOnboarding(value: Boolean) =
         context.dataStore.edit { it[Keys.hasCompletedOnboarding] = value }
+    suspend fun setDemoMode(value: Boolean) = context.dataStore.edit { it[Keys.demoMode] = value }
 }

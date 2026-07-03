@@ -64,6 +64,17 @@ class TripRepository @Inject constructor(
         moduleState.save(SEEDED_KEY, "true")
     }
 
+    /**
+     * Demo-mode reset: wipes the table and re-inserts the pristine [MockData.trips]. Writes go
+     * straight to the DAO (not [upsert]) so seed rows are never mirrored up to Supabase, and the
+     * seeded flag is re-armed so [seedIfEmpty] stays a no-op afterwards.
+     */
+    suspend fun resetToSeed() {
+        tripDao.deleteAll()
+        tripDao.upsertAll(MockData.trips.map { it.toEntity() })
+        moduleState.save(SEEDED_KEY, "true")
+    }
+
     suspend fun upsert(trip: Trip) {
         tripDao.upsert(trip.toEntity())
         val uid = authRepository.currentUid() ?: return
