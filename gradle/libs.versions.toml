@@ -1,12 +1,10 @@
 [versions]
 # ⚠️ These toolchain versions are coupled — change them together:
-#   • Firebase BoM 34.x ships Kotlin 2.3 metadata, so `kotlin` must be >= 2.3.
-#   • `ksp` 2.3.x needs AGP >= 8.8 (addKspConfigurations); KSP now versions independently (2.3.x).
-#   • AGP 8.13 is the LAST 8.x (next is AGP 9). AGP 8.13 requires Gradle 8.14 (gradle/wrapper).
-#   • Hilt: 2.59+ requires AGP 9 (POST_COMPILATION_CLASSES); 2.57.x can't read Kotlin 2.3 metadata.
-#     2.58 is the only version that reads Kotlin 2.3 metadata AND runs on AGP 8.x — keep it pinned.
-#   • Room 2.7+ is required for KSP2 / Kotlin 2.3.
-# Going past this (Hilt 2.59 / AGP 9 / Gradle 9) is a separate, larger migration.
+#   • Current, verified-green stack: AGP 9.2.1 + Gradle 9.4.1 (gradle/wrapper) + Kotlin 2.3.21.
+#   • `ksp` versions independently (2.3.x); KSP2 requires Room 2.7+ and Kotlin 2.3.
+#   • Hilt 2.58 reads Kotlin 2.3 metadata and builds/dexes cleanly on AGP 9.2.1 (verified via
+#     assembleDebug). Hilt 2.59+ (POST_COMPILATION_CLASSES) is the intended AGP 9 pairing —
+#     bump when convenient, but 2.58 is not blocked on it.
 agp = "9.2.1"
 kotlin = "2.3.21"
 ksp = "2.3.9"
@@ -37,7 +35,11 @@ playServicesMaps = "19.2.0"
 # tasks-text runs the on-device text embedder used for RAG retrieval. Both are device-gated and
 # degrade to no-op (Claude/RAG-off) where unsupported — see core/ai + core/rag.
 mlkitGenaiPrompt = "1.0.0-beta2"
-mediapipeTasksText = "0.10.21"
+# ⚠️ Keep >= 0.10.26: earlier releases ship libmediapipe_tasks_text_jni.so with 4 KB ELF LOAD
+# alignment, which trips the OS 16 KB page-size compatibility dialog (and future hard failure)
+# on 16 KB devices/AVDs. 0.10.26+ is 16 KB-aligned (arm64-v8a + armeabi-v7a only — no x86*,
+# so x86 emulators lose the embedder and RAG degrades gracefully).
+mediapipeTasksText = "0.10.26.1"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
