@@ -2,8 +2,10 @@ package com.jetsetter.pro.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jetsetter.pro.core.data.demo.DemoSeeder
 import com.jetsetter.pro.core.data.mock.MockData
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.data.prefs.UserPreferencesRepository
 import com.jetsetter.pro.core.data.repository.ExpenseRepository
 import com.jetsetter.pro.core.data.repository.TripRepository
 import com.jetsetter.pro.core.intelligence.ProactiveEngine
@@ -27,6 +29,8 @@ class HomeViewModel @Inject constructor(
     private val stateStore: ModuleStateStore,
     private val proactiveEngine: ProactiveEngine,
     private val travelProfile: TravelProfile,
+    private val demoSeeder: DemoSeeder,
+    prefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     init {
@@ -59,7 +63,8 @@ class HomeViewModel @Inject constructor(
             tripRepository.observeTrips(),
             expensesRepository.observeExpenses(),
             stateStore.observe(DISMISSED_ALERTS_KEY),
-        ) { trips, expenses, dismissedJson ->
+            prefsRepository.preferences,
+        ) { trips, expenses, dismissedJson, prefs ->
             val dismissed = dismissedJson?.let { json ->
                 runCatching { idsAdapter.fromJson(json) }.getOrNull()
             }.orEmpty().toSet()
@@ -74,8 +79,18 @@ class HomeViewModel @Inject constructor(
                 upcomingTrip = trips.firstOrNull(),
                 expenseSummary = summarize(expenses),
                 alerts = alerts.filterNot { it.id in dismissed },
+                demoMode = prefs.demoMode,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    /**
+     * Alpha convenience for on-device walkthroughs: the Home-header DEMO chip flips demo mode
+     * without leaving the dashboard. Same seeder path as More → Presentation — enabling re-seeds
+     * the curated dataset and arms the scripted disruption push; disabling leaves data as-is.
+     */
+    fun setDemoMode(enabled: Boolean) = viewModelScope.launch {
+        if (enabled) demoSeeder.enableDemoMode() else demoSeeder.disableDemoMode()
+    }
 
     /** Permanently dismiss an alert; the new id set is persisted so it stays gone after restart. */
     fun dismissAlert(id: String) {

@@ -41,8 +41,9 @@ On the demo phone:
 ### Prep before the meeting (5 minutes)
 
 1. Open the app once; breeze through onboarding.
-2. **More → Presentation → Demo mode ON.** Accept the notification permission prompt.
-   This resets every module to the curated dataset and arms the scripted disruption alert.
+2. **Turn Demo mode ON** — tap the **DEMO** chip in the Home header (alpha convenience), or use
+   **More → Presentation → Demo mode**. Accept the notification permission prompt. Either switch
+   resets every module to the curated dataset and arms the scripted disruption alert.
 3. Do a full dry run of the script below, then toggle Demo mode off/on (or tap
    **Reset demo data**) so the investor sees a pristine state.
 4. Phone hygiene: Do Not Disturb *off* (the disruption push must be visible), brightness up,
