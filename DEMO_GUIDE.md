@@ -94,8 +94,10 @@ leave-by math is transparent: 7:00 AM departure minus drive, parking, TSA, and g
 **leave by 5:19 AM**, with LIVE CONDITIONS showing traffic, security, *and weather* risk. Tap
 **Re-roll** to show the numbers move like a live feed — then tap **Navigate to Harry Reid Intl**:
 the route map opens **inside the app** (never a handoff to another app), and **Start drive** plays
-a ~20-second simulated run down the Summerlin → LAS route while remaining time, distance, and ETA
-count down live. Works fully offline; with a Maps key it renders on real Google Map tiles.
+a ~20-second simulated run down the Summerlin → LAS route — remaining time and distance count down
+live against a steady ETA, just like a real navigator. Works fully offline; with a Maps key it
+renders on real Google Map tiles. Ask IRIS *"When should I leave?"* right after a Re-roll: her
+answer reads the optimizer's live numbers, so they always agree.
 
 **Beat 5 — IRIS, the AI concierge.** IRIS tab. Tap the *"When should I leave?"* chip → she gives
 the departure briefing: leave-by time, drive + traffic, TSA wait, and weather, matching the

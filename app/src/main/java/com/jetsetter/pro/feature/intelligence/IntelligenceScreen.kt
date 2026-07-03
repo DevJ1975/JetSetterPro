@@ -668,7 +668,7 @@ private fun IntelligenceContentPreview() {
                         priority = IntelligencePriority.ALERT,
                         severity = IntelligenceSeverity.HIGH,
                         title = "TSA wait rising at LAS",
-                        detail = "Security at Harry Reid Terminal 1 is climbing. Leave by 6:05a to stay ahead of it.",
+                        detail = "Security at Harry Reid Terminal 3 is climbing. Leave by 5:19a to stay ahead of it.",
                         actionLabel = "Set reminder",
                         metric = InsightMetric.Wait(currentMinutes = 32, bufferMinutes = 30),
                     ),

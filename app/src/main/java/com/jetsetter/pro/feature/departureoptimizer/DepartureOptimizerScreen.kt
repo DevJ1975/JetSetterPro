@@ -110,8 +110,9 @@ private fun DepartureOptimizerContent(
     // @Preview/inspection mode, where LaunchedEffect doesn't run, so static previews still render.
     val inspection = LocalInspectionMode.current
     var entered by remember { mutableStateOf(inspection) }
-    // In-app route guidance (product rule: the experience never leaves the app).
-    var showRouteSheet by remember { mutableStateOf(false) }
+    // In-app route guidance (product rule: the experience never leaves the app). Saveable so a
+    // rotation or dark-mode toggle mid-demo doesn't dismiss the sheet.
+    var showRouteSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
     val enter by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,

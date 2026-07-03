@@ -7,6 +7,7 @@ import com.jetsetter.pro.core.ai.IrisPersona
 import com.jetsetter.pro.core.ai.IrisToolDispatcher
 import com.jetsetter.pro.core.ai.OnDeviceAi
 import com.jetsetter.pro.core.secrets.Secrets
+import com.jetsetter.pro.feature.departureoptimizer.DepartureoptimizerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -35,6 +36,7 @@ class IrisRepository @Inject constructor(
     private val claude: ClaudeClient,
     private val tools: IrisToolDispatcher,
     private val onDevice: OnDeviceAi,
+    private val departureRepository: DepartureoptimizerRepository,
 ) {
     /**
      * Streams IRIS's reply token-by-token. [history] is the full conversation; the last entry is
@@ -45,9 +47,13 @@ class IrisRepository @Inject constructor(
     fun stream(history: List<AiMessage>): Flow<String> = flow {
         val lastUserText = history.lastOrNull { it.role == "user" }?.text.orEmpty()
 
+        // The Departure Optimizer's live snapshot, so demo replies about leave-by/traffic/weather
+        // always agree with what that screen currently shows (including after a re-roll).
+        val departureEstimate = runCatching { departureRepository.load() }.getOrNull()
+
         val key = Secrets.anthropic
         if (!Secrets.isConfigured(key)) {
-            emit(IrisPersona.demoResponse(lastUserText))
+            emit(IrisPersona.demoResponse(lastUserText, departureEstimate))
             return@flow
         }
 
@@ -56,7 +62,7 @@ class IrisRepository @Inject constructor(
             .map { textMessage(if (it.role == "model") "assistant" else "user", it.text) }
             .toMutableList()
         if (conversation.isEmpty()) {
-            emit(IrisPersona.demoResponse(lastUserText))
+            emit(IrisPersona.demoResponse(lastUserText, departureEstimate))
             return@flow
         }
 
@@ -119,7 +125,7 @@ class IrisRepository @Inject constructor(
             }
         }.onFailure {
             // Only substitute a demo reply if nothing streamed yet; a mid-stream drop keeps the partial.
-            if (!streamedAny) emit(IrisPersona.demoResponse(lastUserText))
+            if (!streamedAny) emit(IrisPersona.demoResponse(lastUserText, departureEstimate))
         }
     }.flowOn(Dispatchers.IO)
 

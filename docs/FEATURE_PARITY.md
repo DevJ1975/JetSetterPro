@@ -130,9 +130,10 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
   keep it that way when porting the remaining modules (rental-car "deep links", ground
   transport, expense-provider connections must become in-app surfaces).
 - **IRIS gives the departure briefing:** demo-tier replies for "when should I leave / traffic /
-  navigate / weather" narrate the optimizer's numbers (leave by 5:19 AM, 34-min drive, TSA 22m,
-  clear 74°F), a "When should I leave?" suggestion chip was added, and the live Claude tier has a
-  `get_departure_briefing` tool that reads `DepartureoptimizerRepository` for the same story.
+  navigate / weather" are rendered from `DepartureoptimizerRepository`'s **live snapshot** (so a
+  re-rolled drive/TSA/weather can never contradict her; defaults read leave by 5:19 AM, 34-min
+  drive, TSA 22m, clear 74°F), a "When should I leave?" suggestion chip was added, and the live
+  Claude tier has a `get_departure_briefing` tool over the same repository.
 - **Persona consistency:** seed data across Check-In, Travel Wallet, Disruption, Flight Tracker,
   Home, Departure Optimizer, and the IRIS demo replies all describe the same traveler — DL 1423
   LAS→ATL, First cabin seat 3A, gate C22, the Atlanta board-meeting trip, $1,812.75 expenses,

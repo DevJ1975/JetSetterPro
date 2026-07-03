@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,7 +86,9 @@ fun RouteMapSheet(
     val haptics = LocalHapticFeedback.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var driving by remember { mutableStateOf(false) }
+    // Saveable so a config change mid-demo keeps the drive engaged (the run replays from the
+    // start; full progress restoration would mean hoisting the animation into the ViewModel).
+    var driving by rememberSaveable { mutableStateOf(false) }
     val progress by animateFloatAsState(
         targetValue = if (driving) 1f else 0f,
         animationSpec = if (driving) tween(SIM_DRIVE_MS, easing = LinearEasing) else snap(),
@@ -95,7 +98,9 @@ fun RouteMapSheet(
 
     val remainingMinutes = ceil(est.driveMinutes * (1f - progress).toDouble()).toInt()
     val remainingMiles = ROUTE_MILES * (1f - progress)
-    val etaMinuteOfDay = est.nowMinuteOfDay + remainingMinutes
+    // Like a real navigator, the ETA holds steady while REMAINING/DISTANCE count down ("now" is
+    // the optimizer's frozen reference clock, so now + full drive time is the arrival time).
+    val etaMinuteOfDay = est.nowMinuteOfDay + est.driveMinutes
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
