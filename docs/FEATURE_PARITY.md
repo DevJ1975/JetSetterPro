@@ -108,7 +108,11 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
   check-in flows through seat selection, issued passes support "Change seat" while the window is
   open, and the chosen seat persists (`PersistedCheckIn.seat`).
 - **Disruption Monitor posts a real notification** at its "Traveler notified" timeline step
-  (permission requested in-context on the screen; silently skipped when denied).
+  (permission requested in-context on the screen; silently skipped when denied). Every alert on
+  the disruption channel — delay, gate change, cancellation, rebooking — plays the bundled cabin
+  **"fasten seatbelt" chime** (`res/raw/cabin_chime.wav`, wired as the channel sound in
+  `JetNotifier`; channel id bumped to `disruption_alerts_v2` because Android locks a channel's
+  sound at creation).
 - **Demo mode is also flippable from the Home header** — an alpha-only `DEMO` chip
   (`feature.home.HomeScreen`) mirrors the More → Presentation switch (same `DemoSeeder` path,
   same in-context notification-permission request) so a presenter never leaves the dashboard.

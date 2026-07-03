@@ -53,9 +53,9 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberMarkerState
 import com.jetsetter.pro.core.secrets.Secrets
 import com.jetsetter.pro.ui.theme.JetTheme
 import java.util.Locale
@@ -250,6 +250,12 @@ private fun RouteGoogleMap(progress: Float, modifier: Modifier = Modifier) {
     val car = routePointAt(progress)
     var mapLoaded by remember { mutableStateOf(false) }
 
+    val startMarker = rememberMarkerState(position = points.first())
+    val airportMarker = rememberMarkerState(position = points.last())
+    // The traveler's marker is remembered once and repositioned as the simulated drive advances.
+    val carMarker = rememberMarkerState(position = points.first())
+    carMarker.position = LatLng(car.first, car.second)
+
     Box(modifier = modifier) {
         GoogleMap(
             modifier = Modifier.matchParentSize(),
@@ -266,12 +272,9 @@ private fun RouteGoogleMap(progress: Float, modifier: Modifier = Modifier) {
             ),
         ) {
             Polyline(points = points, color = accent, width = 10f)
-            Marker(state = MarkerState(position = points.first()), title = ROUTE_START_LABEL)
-            Marker(state = MarkerState(position = points.last()), title = "Harry Reid Intl (LAS)")
-            Marker(
-                state = MarkerState(position = LatLng(car.first, car.second)),
-                title = "You",
-            )
+            Marker(state = startMarker, title = ROUTE_START_LABEL)
+            Marker(state = airportMarker, title = "Harry Reid Intl (LAS)")
+            Marker(state = carMarker, title = "You")
         }
         // Never show broken grey tiles: keep the code-drawn map on top until Maps confirms load.
         if (!mapLoaded) {

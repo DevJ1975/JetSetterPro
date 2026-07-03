@@ -69,8 +69,10 @@ Everything describes the same executive traveler, so no screen contradicts anoth
 ## 3. Investor walkthrough script (~10 minutes)
 
 **Beat 0 — the hook (starts automatically).** ~25 seconds after Demo mode is switched on, a real
-push notification lands: *"DL 1423 delayed 1h 35m — IRIS found 3 rebooking options."* Start the
-pitch on the lock screen: this is the product — it watches the trip so the traveler doesn't.
+push notification lands — announced by the cabin **"fasten seatbelt" chime** (every delay or gate
+change on the disruption channel plays it): *"DL 1423 delayed 1h 35m — IRIS found 3 rebooking
+options."* Start the pitch on the lock screen: this is the product — it watches the trip so the
+traveler doesn't. (Have media/notification volume up.)
 
 **Beat 1 — Home.** Open the app. The dashboard shows the next flight, the upcoming Atlanta trip,
 the expense rollup, and proactive alerts. Point out this is a live dashboard, not a mock screen.
