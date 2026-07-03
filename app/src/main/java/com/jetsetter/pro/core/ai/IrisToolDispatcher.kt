@@ -52,7 +52,7 @@ class IrisToolDispatcher @Inject constructor(
             "${est.tsaWaitMinutes}-min TSA wait (${est.securityRisk.label.lowercase(Locale.US)}), " +
             "${est.gateBufferMinutes}-min gate buffer. Weather for the drive: ${est.weatherSummary} " +
             "(${est.weatherRisk.label.lowercase(Locale.US)} risk). The Departure Optimizer screen has a " +
-            "Navigate button for GPS turn-by-turn to the airport."
+            "Navigate button that opens the in-app route map and guidance to the airport."
     }
 
     /** Formats minutes-since-midnight as a 12-hour clock, e.g. 319 -> "5:19 AM". */

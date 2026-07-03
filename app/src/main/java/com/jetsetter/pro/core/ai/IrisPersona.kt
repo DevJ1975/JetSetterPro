@@ -36,8 +36,8 @@ object IrisPersona {
             prompt.contains("navigate", ignoreCase = true) || prompt.contains("drive", ignoreCase = true) ->
             "Leave by 5:19 AM for your 7:00 AM departure: it's a 34-minute drive to Harry Reid Intl " +
                 "in moderate traffic, 15 minutes to park, TSA is running 22 minutes, plus your 30-minute " +
-                "gate buffer. Clear skies, 74°F for the drive. Open Departure Optimizer and tap Navigate " +
-                "for GPS turn-by-turn."
+                "gate buffer. Clear skies, 74°F for the drive. Open Departure Optimizer and tap Navigate — " +
+                "the route map and guidance run right here in the app."
         prompt.contains("weather", ignoreCase = true) ->
             "Las Vegas is clear and 74°F for your drive to the airport. Atlanta is the one to watch — " +
                 "a weather hold there is what's delaying DL 1423. I'm tracking both and will ping you if " +

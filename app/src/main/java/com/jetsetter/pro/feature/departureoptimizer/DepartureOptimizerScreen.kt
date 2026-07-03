@@ -1,8 +1,5 @@
 package com.jetsetter.pro.feature.departureoptimizer
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -58,7 +55,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -114,6 +110,8 @@ private fun DepartureOptimizerContent(
     // @Preview/inspection mode, where LaunchedEffect doesn't run, so static previews still render.
     val inspection = LocalInspectionMode.current
     var entered by remember { mutableStateOf(inspection) }
+    // In-app route guidance (product rule: the experience never leaves the app).
+    var showRouteSheet by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
     val enter by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,
@@ -150,7 +148,7 @@ private fun DepartureOptimizerContent(
 
                 FlightHeaderCard(est)
                 LeaveByCard(est)
-                NavigateButton(est)
+                NavigateButton(est = est, onOpenRoute = { showRouteSheet = true })
                 StatRow(est)
                 ArithmeticCard(est, onShowAdjust = onShowAdjust)
                 RiskCard(est)
@@ -193,6 +191,10 @@ private fun DepartureOptimizerContent(
                 )
             }
         }
+    }
+
+    if (showRouteSheet) {
+        RouteMapSheet(est = est, onDismiss = { showRouteSheet = false })
     }
 
     if (state.showAdjustSheet) {
@@ -274,34 +276,18 @@ private fun StatusPill(label: String, color: Color) {
 }
 
 /**
- * Hands the drive off to the phone's GPS: launches Google Maps turn-by-turn navigation to the
- * departure airport (`google.navigation:` intent), falling back to the universal maps URL in a
- * browser when no maps app is installed. Uses the device's real GPS — no API key involved.
+ * Opens the in-app route guidance sheet ([RouteMapSheet]) — map, live conditions, and a simulated
+ * drive to the airport, all without leaving JetSetter Pro (the product's in-app-only rule).
  */
 @Composable
-private fun NavigateButton(est: DepartureOptimizerEstimate) {
+private fun NavigateButton(est: DepartureOptimizerEstimate, onOpenRoute: () -> Unit) {
     val colors = JetTheme.colors
     val haptics = LocalHapticFeedback.current
-    val context = LocalContext.current
 
     Button(
         onClick = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            val destination = Uri.encode(est.airport)
-            val turnByTurn = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$destination&mode=d"))
-            try {
-                context.startActivity(turnByTurn)
-            } catch (_: ActivityNotFoundException) {
-                // No Google Maps — any browser can render the universal directions URL.
-                runCatching {
-                    context.startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$destination&travelmode=driving"),
-                        ),
-                    )
-                }
-            }
+            onOpenRoute()
         },
         colors = ButtonDefaults.buttonColors(
             containerColor = colors.success,

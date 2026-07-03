@@ -112,10 +112,19 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 - **Demo mode is also flippable from the Home header** — an alpha-only `DEMO` chip
   (`feature.home.HomeScreen`) mirrors the More → Presentation switch (same `DemoSeeder` path,
   same in-context notification-permission request) so a presenter never leaves the dashboard.
-- **Departure Optimizer grew the GPS + conditions loop:** a **Navigate** button hands off to
-  Google Maps turn-by-turn (`google.navigation:` intent, browser-URL fallback — real device GPS,
-  no API key), and the live estimate now rolls **weather conditions** (label + °F + risk) shown
-  in the LIVE CONDITIONS card next to traffic and TSA.
+- **Departure Optimizer grew the navigation + conditions loop:** a **Navigate** button opens
+  **in-app route guidance** (`feature.departureoptimizer.RouteMapSheet`) — the seeded
+  Summerlin → LAS route on a real Google Map when `MAPS_API_KEY` is set (code-drawn map
+  otherwise, and as the cover until tiles load), with a simulated "Start drive" run that moves
+  the position marker while remaining time/distance/ETA count down. The live estimate also rolls
+  **weather conditions** (label + °F + risk) shown in the LIVE CONDITIONS card next to traffic
+  and TSA.
+- **📌 Product rule — every experience stays in-app.** No feature may hand the user off to an
+  external app or browser (no `ACTION_VIEW`/maps/dialer/browser intents); maps, navigation,
+  booking, and export flows all render inside JetSetter Pro. The only exception is the system
+  notification shade, whose taps deep-link back into the app. Audited clean as of this change —
+  keep it that way when porting the remaining modules (rental-car "deep links", ground
+  transport, expense-provider connections must become in-app surfaces).
 - **IRIS gives the departure briefing:** demo-tier replies for "when should I leave / traffic /
   navigate / weather" narrate the optimizer's numbers (leave by 5:19 AM, 34-min drive, TSA 22m,
   clear 74°F), a "When should I leave?" suggestion chip was added, and the live Claude tier has a

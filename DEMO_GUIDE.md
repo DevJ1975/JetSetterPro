@@ -87,12 +87,13 @@ to another open seat, confirm → boarding pass issued with zone, boarding posit
 seat. Show **Change seat** on the issued pass, and the other flights' windows (one opens later,
 one closed) to show the logic is real, not canned buttons.
 
-**Beat 4 — Departure Optimizer + GPS.** Features → **Departure Optimizer**. The leave-by math is
-transparent: 7:00 AM departure minus drive, parking, TSA, and gate buffers = **leave by 5:19 AM**,
-with LIVE CONDITIONS showing traffic, security, *and weather* risk. Tap **Re-roll** to show the
-numbers move like a live feed — then tap **Navigate to Harry Reid Intl**: the phone's real GPS
-opens Google Maps turn-by-turn to the airport. (On the demo phone, have Maps installed and
-location on.)
+**Beat 4 — Departure Optimizer + in-app navigation.** Features → **Departure Optimizer**. The
+leave-by math is transparent: 7:00 AM departure minus drive, parking, TSA, and gate buffers =
+**leave by 5:19 AM**, with LIVE CONDITIONS showing traffic, security, *and weather* risk. Tap
+**Re-roll** to show the numbers move like a live feed — then tap **Navigate to Harry Reid Intl**:
+the route map opens **inside the app** (never a handoff to another app), and **Start drive** plays
+a ~20-second simulated run down the Summerlin → LAS route while remaining time, distance, and ETA
+count down live. Works fully offline; with a Maps key it renders on real Google Map tiles.
 
 **Beat 5 — IRIS, the AI concierge.** IRIS tab. Tap the *"When should I leave?"* chip → she gives
 the departure briefing: leave-by time, drive + traffic, TSA wait, and weather, matching the
