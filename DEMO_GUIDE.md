@@ -122,11 +122,19 @@ API key (the mock-first architecture slide).
 
 ---
 
-## 4. Sending it to someone else's phone
+## 4. Getting it onto other phones
 
-Send the `.apk` file (or the Releases link) by email/Drive/WhatsApp with these two lines:
+**For a pool of testers — Firebase App Distribution (recommended).** Testers get an email invite
+and install through Google's App Tester app, and you push new builds to everyone with one click
+(GitHub → Actions → **Firebase App Distribution** → Run workflow). One-time setup in
+[`docs/FIREBASE_DISTRIBUTION.md`](docs/FIREBASE_DISTRIBUTION.md). This does not add Firebase to the
+app — it's a delivery pipeline only.
+
+**For a single controlled phone (e.g. the investor demo) — direct APK.** Build it from
+GitHub → Actions → **Demo APK** → Run workflow (publishes a `demo-build-N` pre-release with a
+direct download link), then send it with these two lines:
 
 > 1. Download the file and tap it; allow "install unknown apps" when Android asks.
-> 2. Open JetSetter Pro → More → Presentation → turn on **Demo mode**.
+> 2. Open JetSetter Pro → tap the **DEMO** chip on the home screen (or More → Presentation → Demo mode).
 
-That's the entire setup — no account, no keys, no network needed.
+Either way it's the same app — no account, no keys, no network needed to run the demo.
