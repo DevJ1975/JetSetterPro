@@ -9,6 +9,11 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 - **Shared services:** `JetSetter Pro/Core/Services/` → `com.jetsetter.pro.core.*`
   (see §3)
 
+> **📲 iOS / Xcode hand-off:** Android landed a batch of demo-mode + trip-day changes that the iOS
+> app should converge to (unified seeded persona, presentation-safe IRIS copy, cabin-chime alerts,
+> in-app-only navigation, seat map, GPS + weather departure loop). The **converge list and exact
+> values live in `IOS_PARITY_NOTES.md` §7** (with a checklist in §6). Start there for the port.
+
 ### Legend
 
 - **Status:** ✅ wired (UI + data flowing) · 🟡 stubbed (screen/scaffold exists,
@@ -49,10 +54,10 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 | 18 | **RentalCar** | `Features/RentalCar/` | Rental car search/detail; deep links | `feature.rentalcar` | RentalCarService; Enterprise/Hertz/National; Mock | P2 | ⬜ |
 | 19 | **LuggageTracker** | `Features/LuggageTracker/` | Bag registry; WorldTracer status; AirTag; scan history | `feature.luggagetracker` | SITAWorldTracerService, Room (Bag/BagScanEvent) | P1 | ⬜ |
 | 20 | **AirportMap** | `Features/AirportMap/` | Airport terminal map / amenities | `feature.airportmap` | AirportMapViewModel; bundled/Mock | P2 | ⬜ |
-| 21 | **TravelWallet** | `Features/TravelWallet/` | Boarding passes, hotel/car/event/insurance docs | `feature.travelwallet` | PassKitService → (Google Wallet), Room (WalletItem), Firestore | P1 | ⬜ |
+| 21 | **TravelWallet** | `Features/TravelWallet/` | Boarding passes, hotel/car/event/insurance docs | `feature.travelwallet` | PassKitService → (Google Wallet), Room (WalletItem), Supabase | P1 | ⬜ |
 | 22 | **LoyaltyVault** | `Features/LoyaltyVault/` | Frequent-flyer/hotel accounts + balances | `feature.loyaltyvault` | Room (LoyaltyAccount), program catalog, EncryptedSharedPrefs | P1 | ⬜ |
 | 23 | **IdentityVault** | `Features/IdentityVault/` | Secured personal identity info | `feature.identityvault` | VaultCrypto (Tink/AES-GCM), BiometricPrompt | P2 | ⬜ |
-| 24 | **DocumentVault** | `Features/DocumentVault/` | Encrypted travel docs (passport/visa/etc.) + expiry alerts | `feature.documentvault` | VaultCrypto, DocumentVaultStore, BiometricPrompt, Firestore | P1 | ⬜ |
+| 24 | **DocumentVault** | `Features/DocumentVault/` | Encrypted travel docs (passport/visa/etc.) + expiry alerts | `feature.documentvault` | VaultCrypto, DocumentVaultStore, BiometricPrompt, Supabase | P1 | ⬜ |
 | 25 | **CurrencyTracker** | `Features/CurrencyTracker/` | FX rates + currency-aware expense conversion | `feature.currencytracker` | ExchangeRateService; Room cache | P2 | ⬜ |
 | 26 | **CarbonTracker** | `Features/Carbon/` | Flight carbon footprint estimate | `feature.carbontracker` | Local calculator; flight data | P2 | ⬜ |
 | 27 | **Subscription** | `Features/Subscription/` | Premium paywall + gating | `feature.subscription` | SubscriptionManager → Google Play Billing | P1 | ⬜ |
@@ -225,6 +230,7 @@ Firebase auth). Then **Onboarding**, **FlightTracker**, **TravelWallet**,
 **ExpenseExport**, **InFlight**, **OfflineKit**.
 
 ### Cross-cutting (every phase)
-Firestore cross-device sync wired as each model's Room layer lands; offline-first
-(Room is source of truth, sync reconciles); secrets→Mock fallback verified per
-feature; accessibility + RTL (`AutoMirrored` icons) checked as screens are built.
+Supabase cross-device sync wired as each model's Room layer lands (Firestore is
+retired — see `IOS_PARITY_NOTES.md` §1); offline-first (Room is source of truth,
+sync reconciles); secrets→Mock fallback verified per feature; accessibility + RTL
+(`AutoMirrored` icons) checked as screens are built.
