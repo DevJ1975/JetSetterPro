@@ -125,6 +125,7 @@ The package root is `com.jetsetter.pro`; the layout above is fixed — new code 
 | [`docs/SF_SYMBOL_MAP.md`](docs/SF_SYMBOL_MAP.md) | SF Symbol → Material Symbols / `Icons.*` replacement table. |
 | [`docs/FEATURE_PARITY.md`](docs/FEATURE_PARITY.md) | All 34 iOS modules with port status (wired / stubbed / not started). |
 | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | Every API key, base URL, endpoint, and the mock-fallback behavior. |
+| [`docs/GOOGLE_PLAY_API_SETUP.md`](docs/GOOGLE_PLAY_API_SETUP.md) | Play Developer API service-account setup for publishing (`scripts/setup-play-publisher.sh` + `verify-play-publisher.sh`). |
 
 ---
 

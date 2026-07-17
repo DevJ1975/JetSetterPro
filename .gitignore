@@ -13,6 +13,13 @@ local.properties
 *.keystore
 *.jks
 
+# Google Play publisher service-account keys.
+# The real key lives OUTSIDE the repo (~/.config/jsp/play-publisher.json); these patterns
+# are belt-and-suspenders so a key can never be committed if it lands here by accident.
+play-publisher*.json
+*-service-account.json
+*.sa.json
+
 # Android Studio / IntelliJ
 .idea/
 *.iml
