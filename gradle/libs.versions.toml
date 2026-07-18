@@ -1,12 +1,10 @@
 [versions]
 # ⚠️ These toolchain versions are coupled — change them together:
-#   • Firebase BoM 34.x ships Kotlin 2.3 metadata, so `kotlin` must be >= 2.3.
-#   • `ksp` 2.3.x needs AGP >= 8.8 (addKspConfigurations); KSP now versions independently (2.3.x).
-#   • AGP 8.13 is the LAST 8.x (next is AGP 9). AGP 8.13 requires Gradle 8.14 (gradle/wrapper).
-#   • Hilt: 2.59+ requires AGP 9 (POST_COMPILATION_CLASSES); 2.57.x can't read Kotlin 2.3 metadata.
-#     2.58 is the only version that reads Kotlin 2.3 metadata AND runs on AGP 8.x — keep it pinned.
-#   • Room 2.7+ is required for KSP2 / Kotlin 2.3.
-# Going past this (Hilt 2.59 / AGP 9 / Gradle 9) is a separate, larger migration.
+#   • Current, verified-green stack: AGP 9.2.1 + Gradle 9.4.1 (gradle/wrapper) + Kotlin 2.3.21.
+#   • `ksp` versions independently (2.3.x); KSP2 requires Room 2.7+ and Kotlin 2.3.
+#   • Hilt 2.58 reads Kotlin 2.3 metadata and builds/dexes cleanly on AGP 9.2.1 (verified via
+#     assembleDebug). Hilt 2.59+ (POST_COMPILATION_CLASSES) is the intended AGP 9 pairing —
+#     bump when convenient, but 2.58 is not blocked on it.
 agp = "9.2.1"
 kotlin = "2.3.21"
 ksp = "2.3.9"
@@ -18,6 +16,9 @@ composeBom = "2024.12.01"
 navigationCompose = "2.8.5"
 hilt = "2.58"
 hiltNavigationCompose = "1.2.0"
+# androidx.hilt work integration (@HiltWorker + HiltWorkerFactory, plan R6). Kept on the same
+# 1.2.0 line as hilt-navigation-compose — the androidx.hilt artifacts version together.
+hiltWork = "1.2.0"
 room = "2.7.2"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
@@ -33,6 +34,23 @@ coil = "2.7.0"
 work = "2.10.0"
 mapsCompose = "8.3.0"
 playServicesMaps = "19.2.0"
+# On-device AI. ML Kit GenAI Prompt API drives free-form Gemini Nano (AICore) inference; MediaPipe
+# tasks-text runs the on-device text embedder used for RAG retrieval. Both are device-gated and
+# degrade to no-op (Claude/RAG-off) where unsupported — see core/ai + core/rag.
+mlkitGenaiPrompt = "1.0.0-beta2"
+# ⚠️ Keep >= 0.10.26: earlier releases ship libmediapipe_tasks_text_jni.so with 4 KB ELF LOAD
+# alignment, which trips the OS 16 KB page-size compatibility dialog (and future hard failure)
+# on 16 KB devices/AVDs. 0.10.26+ is 16 KB-aligned (arm64-v8a + armeabi-v7a only — no x86*,
+# so x86 emulators lose the embedder and RAG degrades gracefully).
+mediapipeTasksText = "0.10.26.1"
+# ML Kit Text Recognition v2 (Latin script, bundled model) — on-device receipt OCR (spec §2.3/§3.1).
+# Unlike genai-prompt this model ships inside the APK, so it runs on every device with no
+# AICore/Play-services download gate. Google Vision is the Phase 3 cloud fallback (see core/ocr).
+mlkitTextRecognition = "16.0.1"
+# EncryptedSharedPreferences backing for the Supabase session (core/auth/EncryptedSessionManager).
+# ⚠️ Jetpack deprecated this library at 1.1.0 (final release) — acceptable here because the usage
+# is fully owned by the one EncryptedSessionManager seam and can be swapped without call-site churn.
+securityCrypto = "1.1.0"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
@@ -56,6 +74,8 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWork" }
+androidx-hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltWork" }
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
@@ -71,14 +91,19 @@ supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version
 supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt" }
 supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
 supabase-realtime = { group = "io.github.jan-tennert.supabase", name = "realtime-kt" }
+supabase-functions = { group = "io.github.jan-tennert.supabase", name = "functions-kt" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai-prompt", version.ref = "mlkitGenaiPrompt" }
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
+mediapipe-tasks-text = { group = "com.google.mediapipe", name = "tasks-text", version.ref = "mediapipeTasksText" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }

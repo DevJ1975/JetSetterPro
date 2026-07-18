@@ -40,9 +40,15 @@ class ModuleStateStore @Inject constructor(
     suspend fun read(key: String): String? =
         context.moduleStateDataStore.data.first()[stringPreferencesKey(key)]
 
+    suspend fun remove(key: String) {
+        context.moduleStateDataStore.edit { it.remove(stringPreferencesKey(key)) }
+    }
+
     /**
-     * Wipes every feature's persisted state in one shot. Used by demo-mode reset so all modules
-     * fall back to their pristine seed data on next read.
+     * Wipes every key — the account-deletion path
+     * ([com.jetsetter.pro.core.backend.CloudBackend.deleteAccount]) and demo-mode reset
+     * (`core.data.demo.DemoSeeder`). Also clears seed/consent flags, so the app returns to
+     * fresh-install (or pristine demo) behavior on next launch.
      */
     suspend fun clearAll() {
         context.moduleStateDataStore.edit { it.clear() }

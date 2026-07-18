@@ -12,6 +12,15 @@ import javax.inject.Singleton
 @Singleton
 class CheckinRepository @Inject constructor() {
 
+    companion object {
+        /**
+         * Ids of the built-in demo flights below. Check-ins against these are demo interactions —
+         * they must never feed the travel-profile learning loop (plan R10e: the profile never
+         * learns from demo seats/flights). Keep in sync with [loadUpcomingFlights].
+         */
+        val seedFlightIds: Set<String> = setOf("dl1423", "aa88", "ua512")
+    }
+
     /** Returns the traveler's upcoming flights, with departures anchored to [nowMillis]. */
     suspend fun loadUpcomingFlights(nowMillis: Long): List<CheckInFlight> {
         val hour = 60 * 60 * 1000L

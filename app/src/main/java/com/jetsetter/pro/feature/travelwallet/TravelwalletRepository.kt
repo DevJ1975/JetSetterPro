@@ -1,23 +1,41 @@
 package com.jetsetter.pro.feature.travelwallet
 
+import com.jetsetter.pro.core.backend.CloudBackend
+import com.jetsetter.pro.core.backend.TravelWalletItemDoc
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.di.ApplicationScope
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Single source of truth for the Travel Wallet. Mock-first: seeded from [seed], then any
+ * Single source of truth for the Travel Wallet. Local-first: seeded from [seed], then any
  * tester-added passes (plus pin / delete edits) are persisted as a Moshi-serialized JSON list via
  * [ModuleStateStore] (key [KEY]) so they survive app restarts — the same Moshi idiom Room uses in
  * `core/data/local/Converters.kt`. Moshi serializes [TravelWalletPassType] to its name automatically.
+ *
+ * CLOUD WRITE-THROUGH (plan R8): every local mutation mirrors best-effort to
+ * [CloudBackend.walletItems] on the app scope (the `TripRepository.upsert` idiom — the local write
+ * returns immediately, a failed mirror is silently dropped), and on sign-in the remote passes are
+ * merged by id into the local wallet (adopt remote-only, push local-only up — the
+ * `TravelProfileStore` reconcile shape). The local store stays the source of truth throughout;
+ * seed/demo passes never push to the cloud (plan R10e's seed-data guard). With the live project's
+ * `wallet_items` table not yet created and anonymous auth off, every cloud path degrades to a
+ * silent no-op.
  */
 @Singleton
 class TravelWalletRepository @Inject constructor(
     private val store: ModuleStateStore,
+    private val backend: CloudBackend,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) {
     private val adapter = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -25,6 +43,17 @@ class TravelWalletRepository @Inject constructor(
         .adapter<List<TravelWalletItem>>(
             Types.newParameterizedType(List::class.java, TravelWalletItem::class.java),
         )
+
+    init {
+        // Sign-in reconcile: merge-by-id pull once per signed-in uid (distinctUntilChanged over
+        // non-null uids — the TravelProfileStore idiom). A failed merge leaves local data alone.
+        appScope.launch {
+            backend.session
+                .mapNotNull { it?.uid }
+                .distinctUntilChanged()
+                .collect { uid -> runCatching { mergeCloudPasses(uid) } }
+        }
+    }
 
     /** Live view of the wallet, falling back to the seed until something is persisted. */
     fun observePasses(): Flow<List<TravelWalletItem>> =
@@ -37,17 +66,55 @@ class TravelWalletRepository @Inject constructor(
 
     /** Pin / unpin a pass so it's easy to find at the gate. */
     suspend fun toggleFavorite(id: String) {
-        persist(current().map { if (it.id == id) it.copy(isFavorite = !it.isFavorite) else it })
+        val updated = current().map { if (it.id == id) it.copy(isFavorite = !it.isFavorite) else it }
+        persist(updated)
+        updated.firstOrNull { it.id == id }?.let(::pushPass)
     }
 
     /** Add a tester-built pass to the top of the wallet so it's immediately visible. */
     suspend fun addPass(item: TravelWalletItem) {
         persist(listOf(item) + current())
+        pushPass(item)
     }
 
     /** Remove a pass entirely. */
     suspend fun removePass(id: String) {
         persist(current().filterNot { it.id == id })
+        if (id in seedIds) return
+        val uid = backend.currentSession()?.uid ?: return
+        appScope.launch { backend.walletItems.delete(uid, id) }
+    }
+
+    // ── Cloud write-through (plan R8) ────────────────────────────────────────
+
+    /**
+     * Best-effort cloud mirror of one pass, fired on [appScope] so the local write returns
+     * immediately. Seed/demo passes and signed-out sessions are silent no-ops; the sign-in merge
+     * pushes local-only passes up later.
+     */
+    private fun pushPass(item: TravelWalletItem) {
+        if (item.id in seedIds) return
+        val uid = backend.currentSession()?.uid ?: return
+        appScope.launch { backend.walletItems.upsert(uid, item.toWalletDoc()) }
+    }
+
+    /**
+     * Non-destructive merge-by-id against the cloud: adopt remote-only passes into the local
+     * wallet (appended below local ones — local order wins) and push local-only, non-seed passes
+     * up. Remote docs with unknown pass types are skipped (a newer client's data is preserved
+     * remotely, just not rendered here). Local passes are never overwritten or deleted by this.
+     */
+    private suspend fun mergeCloudPasses(uid: String) {
+        val remote = runCatching { backend.walletItems.getOnce(uid) }
+            .getOrDefault(emptyList())
+            .mapNotNull { it.toWalletItemOrNull() }
+        val local = current()
+        val localIds = local.mapTo(HashSet()) { it.id }
+        val remoteOnly = remote.filter { it.id !in localIds }
+        if (remoteOnly.isNotEmpty()) persist(local + remoteOnly)
+        val remoteIds = remote.mapTo(HashSet()) { it.id }
+        local.filter { it.id !in remoteIds && it.id !in seedIds }
+            .forEach { backend.walletItems.upsert(uid, it.toWalletDoc()) }
     }
 
     private suspend fun current(): List<TravelWalletItem> {
@@ -61,6 +128,9 @@ class TravelWalletRepository @Inject constructor(
 
     private fun parse(json: String): List<TravelWalletItem>? =
         runCatching { adapter.fromJson(json) }.getOrNull()
+
+    /** Ids of the demo passes — derived from [seed] so the guard can never drift from it. */
+    private val seedIds: Set<String> by lazy { seed().mapTo(HashSet()) { it.id } }
 
     private fun seed(): List<TravelWalletItem> = listOf(
         TravelWalletItem(
@@ -116,4 +186,33 @@ class TravelWalletRepository @Inject constructor(
     private companion object {
         const val KEY = "travel_wallet_passes"
     }
+}
+
+// ── Cloud doc mapping (plan R8) ──────────────────────────────────────────────
+
+/** Pass → backend-neutral doc; the enum travels as its constant name (CloudModels contract). */
+internal fun TravelWalletItem.toWalletDoc() = TravelWalletItemDoc(
+    id = id,
+    type = type.name,
+    title = title,
+    subtitle = subtitle,
+    keyDetailLabel = keyDetailLabel,
+    keyDetailValue = keyDetailValue,
+    date = date,
+    isFavorite = isFavorite,
+)
+
+/** Doc → pass, or null for a pass type this client doesn't know (skipped by the merge). */
+internal fun TravelWalletItemDoc.toWalletItemOrNull(): TravelWalletItem? {
+    val passType = runCatching { TravelWalletPassType.valueOf(type) }.getOrNull() ?: return null
+    return TravelWalletItem(
+        id = id,
+        type = passType,
+        title = title,
+        subtitle = subtitle,
+        keyDetailLabel = keyDetailLabel,
+        keyDetailValue = keyDetailValue,
+        date = date,
+        isFavorite = isFavorite,
+    )
 }

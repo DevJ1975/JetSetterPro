@@ -18,6 +18,26 @@ object Secrets {
     val sitaWorldTracer: String get() = BuildConfig.API_SITA_WORLDTRACER
     val mapsApiKey: String get() = BuildConfig.MAPS_API_KEY
 
+    /** Expedia Rapid — OAuth2 client-credentials pair. */
+    val expediaClientId: String get() = BuildConfig.API_EXPEDIA_CLIENT_ID
+    val expediaClientSecret: String get() = BuildConfig.API_EXPEDIA_CLIENT_SECRET
+
+    /** Lyft — OAuth2 client-credentials pair. */
+    val lyftClientId: String get() = BuildConfig.API_LYFT_CLIENT_ID
+    val lyftClientSecret: String get() = BuildConfig.API_LYFT_CLIENT_SECRET
+
+    /** Car-rental partners (deep links + placeholder search). */
+    val enterprise: String get() = BuildConfig.API_ENTERPRISE
+    val hertz: String get() = BuildConfig.API_HERTZ
+    val national: String get() = BuildConfig.API_NATIONAL
+
+    /** Expense-report integrations (submitExpenses providers). */
+    val expensifyPartnerKey: String get() = BuildConfig.API_EXPENSIFY_PARTNER_KEY
+    val rampClientId: String get() = BuildConfig.API_RAMP_CLIENT_ID
+    val rampClientSecret: String get() = BuildConfig.API_RAMP_CLIENT_SECRET
+    val brexClientId: String get() = BuildConfig.API_BREX_CLIENT_ID
+    val divvyClientId: String get() = BuildConfig.API_DIVVY_CLIENT_ID
+
     /** Supabase — the shared backend the iOS app also uses. */
     val supabaseUrl: String get() = BuildConfig.SUPABASE_URL
     val supabaseAnonKey: String get() = BuildConfig.SUPABASE_ANON_KEY

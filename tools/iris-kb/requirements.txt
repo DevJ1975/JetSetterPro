@@ -1,0 +1,4 @@
+# Embedder parity: the app runs MediaPipe Tasks TextEmbedder, so the offline build must too.
+mediapipe>=0.10.21
+PyYAML>=6.0
+numpy>=1.24

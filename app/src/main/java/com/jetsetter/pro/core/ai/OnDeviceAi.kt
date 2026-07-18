@@ -40,7 +40,7 @@ interface OnDeviceAi {
 
     /**
      * Streams one assistant turn entirely on-device, emitting text chunks as they are generated.
-     * [system] is the shared [IrisPersona.SYSTEM_PROMPT]; [history] is the full conversation whose
+     * [system] is the shared [IrisPersona.BASE_PROMPT] plus dynamic sections; [history] is the full conversation whose
      * last entry is the new user message. Plain chat only — no tool use.
      */
     fun stream(system: String, history: List<AiMessage>): Flow<String>

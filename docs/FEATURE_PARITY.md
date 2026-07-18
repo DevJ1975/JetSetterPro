@@ -31,7 +31,7 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 |---|---|---|---|---|---|---|---|
 | 1 | **Home** | `Features/Home/` | Dashboard: next trip, live flight, quick actions, alerts | `feature.home` | HomeViewModel aggregates Trip/Flight/Wallet repos; FlightAware | P0 | ✅ |
 | 2 | **Itinerary** | `Features/Itinerary/` (+`PackingList/`) | Trip list & detail; add/edit items; packing list; share text | `feature.itinerary` | Room (Trip/ItineraryItem/PackingItem), CalendarService, Supabase sync | P0 | ✅ |
-| 3 | **IRIS Chat** | `Features/IRIS/` | AI travel assistant chat + memory + suggestion cards | `feature.iris` | Anthropic Claude (`claude-sonnet-4-6`, streaming SSE) + demo fallback; on-device Nano = Phase C. See `IOS_PARITY_NOTES.md` §4 | P0 | ✅ |
+| 3 | **IRIS Chat** | `Features/IRIS/` | AI travel assistant chat + memory + suggestion cards | `feature.iris` | Anthropic Claude (`claude-sonnet-4-6`, streaming SSE) + Gemini Nano on-device tier + demo fallback; **14-tool roster with staged confirmations**; hands-free voice loop; IRIS memory + learning. See `IOS_PARITY_NOTES.md` §4, §8–§13 | P0 | ✅ |
 | 4 | **Expenses (ExpenseTracker)** | `Features/ExpenseTracker/` | Expense list, manual entry, receipt scan, mileage (IRS rate) | `feature.expenses` | Room (Expense) + Supabase sync ✅, VisionOCRService → Google Vision (OCR pending) | P0 | 🟡 |
 | 5 | **More / Settings** | `Features/More/` (+`Settings/`) | Settings hub, profile, preferences, feature index, sign-out | `feature.more` | DataStore (UserPreferences), FirebaseService (auth) | P0 | 🟡 |
 | 6 | **FlightTracker** | `Features/FlightTracker/` | Live flight status by ident; gates, delays, progress | `feature.flighttracker` | FlightAware AeroAPI; APIClient | P1 | ⬜ |
@@ -53,7 +53,7 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 | 22 | **LoyaltyVault** | `Features/LoyaltyVault/` | Frequent-flyer/hotel accounts + balances | `feature.loyaltyvault` | Room (LoyaltyAccount), program catalog, EncryptedSharedPrefs | P1 | ⬜ |
 | 23 | **IdentityVault** | `Features/IdentityVault/` | Secured personal identity info | `feature.identityvault` | VaultCrypto (Tink/AES-GCM), BiometricPrompt | P2 | ⬜ |
 | 24 | **DocumentVault** | `Features/DocumentVault/` | Encrypted travel docs (passport/visa/etc.) + expiry alerts | `feature.documentvault` | VaultCrypto, DocumentVaultStore, BiometricPrompt, Firestore | P1 | ⬜ |
-| 25 | **CurrencyTracker** | `Features/CurrencyTracker/` | FX rates + currency-aware expense conversion | `feature.currencytracker` | ExchangeRateService; Room cache | P2 | ⬜ |
+| 25 | **CurrencyTracker** | `Features/CurrencyTracker/` | FX rates + currency-aware expense conversion | `feature.currencytracker` | **frankfurter.dev v1** (keyless live FX, ECB) + last-good cache + static fallback | P2 | 🟡 |
 | 26 | **CarbonTracker** | `Features/Carbon/` | Flight carbon footprint estimate | `feature.carbontracker` | Local calculator; flight data | P2 | ⬜ |
 | 27 | **Subscription** | `Features/Subscription/` | Premium paywall + gating | `feature.subscription` | SubscriptionManager → Google Play Billing | P1 | ⬜ |
 | 28 | **ExpenseExport** | `Features/ExpenseExport/` | Export expenses (PDF) + provider connections | `feature.expenseexport` | PDFExpenseReportRenderer, Expensify/Ramp/Brex/Divvy | P2 | ⬜ |
@@ -73,17 +73,36 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 ### Current status (updated as modules land)
 
 - **✅ wired:** Home, Itinerary, **Onboarding** (first-run gate via DataStore +
-  splash hold; `feature.onboarding`)
+  splash hold; `feature.onboarding`), and **IRIS Chat** at full iOS parity:
+  - **Full tool roster + staging** — all 14 camelCase tools wired through
+    `IrisToolDispatcher`/`ActionRouter` with the staged **confirmation card** in chat
+    (Cancel/Confirm; nothing written until confirmed).
+  - **Voice hands-free loop** — `VoiceLoopController` (listen → think → speak → listen),
+    partial transcripts, ~1.2 s EOU, mic teardown while speaking, auto-resume; opt-in TTS
+    retained.
+  - **Proactive engine** — the 12-kind `IrisSuggestionEngine` drives Home alerts
+    (priority order, never-suppressed safety kinds, 3-dismissal preference backoff);
+    tap deep-links into IRIS with the suggestion's prompt.
+  - **On-device learning + memory** — `TravelSignal`/`TravelProfileEngine`
+    (365-day half-life) behind the 4 consent switches, plus the IRIS memory
+    inspect/forget UI (`feature.irismemory`).
+  - **Expense categorizer** — `NanoExpenseCategorizer` (Gemini Nano) prefills the
+    category; gracefully returns null (manual picker stays authoritative) when Nano
+    is unavailable.
+  - **Live FX** — keyless frankfurter.dev rates behind the Currency feature (see row 25).
+  - Keep prompt + demo replies identical to iOS (`IOS_PARITY_NOTES.md` §4, §10–§13).
+- **🆕 new module (no iOS-table row yet): Loved Ones** — `feature.lovedones` wired
+  (contact management under `jetsetter_loved_ones`, native-composer SMS via verbatim
+  `SmsTemplates`, consumed by IRIS `flightActions(notifyLovedOnes)`); mirror on iOS per
+  `IOS_PARITY_NOTES.md` §13.
 - **🟡 partially wired / stubbed:**
-  - **IRIS Chat** — live **Claude `claude-sonnet-4-6` streaming** (`core.ai.ClaudeClient`) + demo
-    fallback; tokens render live into the chat bubble. Needs `API_ANTHROPIC` set (else demo
-    replies). On-device Nano tier + dynamic suggestion cards pending (Phases C/F). Keep prompt +
-    demo replies identical to iOS (`IOS_PARITY_NOTES.md` §4).
   - **More/Settings** — appearance (theme) + profile persist via DataStore; now also hosts the
     **Features menu** (`ui/navigation/FeatureCatalog.kt`) that routes to every module below.
     Account/auth UI still pending.
   - **Expenses (ExpenseTracker)** — Room-backed ledger with Supabase cross-device sync (anonymous
-    Auth, RLS, Realtime), seeded from mock; receipt-scan OCR still pending.
+    Auth, RLS, Realtime), seeded from mock; Nano categorizer prefills the category on entry.
+    **Receipt-scan OCR UI still pending** — the `core.ocr` pipeline (ML Kit Text Recognition +
+    `ReceiptParser`) exists but no screen consumes it yet.
 - **🟢 wired mock-first (beta):** all **27 remaining feature modules** are scaffolded end-to-end
   (Screen + ViewModel + UiState + Repository + Models per `feature.<name>`), reachable from
   **More → Features**, and fully interactive with realistic in-memory sample data — built for
@@ -133,13 +152,20 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
   navigate / weather" are rendered from `DepartureoptimizerRepository`'s **live snapshot** (so a
   re-rolled drive/TSA/weather can never contradict her; defaults read leave by 5:19 AM, 34-min
   drive, TSA 22m, clear 74°F), a "When should I leave?" suggestion chip was added, and the live
-  Claude tier has a `get_departure_briefing` tool over the same repository.
+  Claude tier covers the same intent through the parity-spec `getDepartureRecommendation` tool
+  (the demo line's `get_departure_briefing` tool was superseded by it in the merge).
 - **Persona consistency:** seed data across Check-In, Travel Wallet, Disruption, Flight Tracker,
   Home, Departure Optimizer, and the IRIS demo replies all describe the same traveler — DL 1423
   LAS→ATL, First cabin seat 3A, gate C22, the Atlanta board-meeting trip, $1,812.75 expenses,
   a 7:00 AM departure with a 5:19 AM leave-by. Keep new seed data on this persona. IRIS demo
   replies were reworded (presentation-safe, no setup hints) — this deviates from the older iOS
   copy on purpose; converge iOS onto the new wording.
+- **📌 Merge note (2026-07):** the investor-demo line (`origin/main`, 13 commits) was merged into
+  the iOS-parity stack with the parity stack winning all conflicts. Demo features above were
+  re-ported onto the new stack (DemoSeeder/JetNotifier/seat map/route map kept; the demo line's
+  older IRIS briefing superseded by the `DAILY_BRIEFING` suggestion kind + the
+  `getDepartureRecommendation` tool; Firebase App Distribution kept as a CLI-only CI pipeline —
+  no Firebase runtime or gradle plugin returned to the app).
 
 ---
 
@@ -172,7 +198,7 @@ behind interfaces so ViewModels stay testable.
 |---|---|---|
 | `APIClient` / `Endpoints` | `core.network` (Retrofit + OkHttp + Moshi) | See APIClient/error model in `API_REFERENCE.md` |
 | `AppSecrets` | `core.secrets.Secrets` | Reads `BuildConfig` fields; empty ⇒ Mock |
-| `AIService` | `core.data.repository.IrisRepository` (+ `core.ai.ClaudeClient`, `core.ai.IrisPersona`) | **Anthropic Claude** (`claude-sonnet-4-6`, streaming `/v1/messages`); persona in `IrisPersona`; demo fallback. On-device Nano tier = Phase C. |
+| `AIService` | `core.data.repository.IrisRepository` (+ `core.ai.ClaudeClient`, `core.ai.IrisPersona`, `core.ai.IrisToolDispatcher`, `core.ai.ActionRouter`) | **Anthropic Claude** (`claude-sonnet-4-6`, streaming `/v1/messages`) with the full staged tool roster; Gemini Nano on-device tier (chat-only — tool turns divert to Claude); full sectioned persona in `IrisPersona.BASE_PROMPT`; demo fallback. |
 | `FirebaseService` | `core.auth.AuthRepository` (Supabase Auth) + `core.sync.SupabaseTripSync` (Postgrest + Realtime) | **Supabase** is the shared data + auth backend (Firestore retired). Anonymous sign-in; trips sync to `public.trips` (RLS on `auth.uid()`). Schema: `supabase/migrations/` + `IOS_PARITY_NOTES.md` §2. |
 | `MockDataService` / `DemoSeeder` | `core.data.mock.MockData` | Sample data parity with iOS `*.sample` |
 | `VaultCrypto` | `core.crypto.VaultCrypto` | Tink (AES-GCM) + Android Keystore; EncryptedSharedPreferences |

@@ -2,17 +2,21 @@ package com.jetsetter.pro.feature.loyaltyvault
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jetsetter.pro.core.intelligence.TravelProfileStore
+import com.jetsetter.pro.core.intelligence.TravelSignal
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
 class LoyaltyvaultViewModel @Inject constructor(
     private val repository: LoyaltyvaultRepository,
+    private val travelProfileStore: TravelProfileStore,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(LoyaltyvaultUiState(isLoading = true))
@@ -123,6 +127,22 @@ class LoyaltyvaultViewModel @Inject constructor(
                     type = type,
                     centsPerUnit = type.defaultCentsPerUnit,
                     nextTier = null,
+                ),
+            )
+            // Learning seam (plan A4): a user-added program teaches the profile which airline/hotel
+            // brands they belong to. Only user adds pass here — seeds go through seedIfEmpty.
+            travelProfileStore.record(
+                TravelSignal(
+                    kind = TravelSignal.Kind.LOYALTY_ADDED,
+                    value = name,
+                    attributes = mapOf(
+                        TravelSignal.Attr.BRAND_KIND to when (type) {
+                            LoyaltyVaultProgramType.AIRLINE -> "airline"
+                            LoyaltyVaultProgramType.HOTEL -> "hotel"
+                        },
+                    ),
+                    timestamp = Instant.now().toString(),
+                    source = "loyalty",
                 ),
             )
             _ui.update { it.copy(isSaving = false, showAddSheet = false) }

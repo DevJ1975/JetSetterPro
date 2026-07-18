@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EventSeat
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -64,6 +66,7 @@ import com.jetsetter.pro.ui.components.JetCard
 import com.jetsetter.pro.ui.components.PremiumTextField
 import com.jetsetter.pro.ui.theme.JetSetterTheme
 import com.jetsetter.pro.ui.theme.JetTheme
+import java.time.LocalDate
 import java.util.Locale
 
 /**
@@ -73,6 +76,7 @@ import java.util.Locale
 @Composable
 fun RentalCarScreen(viewModel: RentalcarViewModel = hiltViewModel()) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     RentalCarContent(
         state = state,
         onSelectOffer = viewModel::selectOffer,
@@ -80,6 +84,18 @@ fun RentalCarScreen(viewModel: RentalcarViewModel = hiltViewModel()) {
         onDaysChange = viewModel::onDaysChange,
         onIncrementDays = viewModel::incrementDays,
         onDecrementDays = viewModel::decrementDays,
+        onOpenPartnerSite = { offer ->
+            // Hand off to the partner's public reservation page for this offer's brand, using
+            // the demo trip's pickup airport and the tester's chosen rental length as dates.
+            val pickup = LocalDate.now()
+            RentalcarDeepLinks.open(
+                context = context,
+                company = offer.company,
+                pickupLocation = PICKUP_LOCATION,
+                pickupDate = pickup,
+                returnDate = pickup.plusDays(state.rentalDays.toLong()),
+            )
+        },
     )
 }
 
@@ -95,6 +111,7 @@ private fun RentalCarContent(
     onDaysChange: (String) -> Unit,
     onIncrementDays: () -> Unit,
     onDecrementDays: () -> Unit,
+    onOpenPartnerSite: (RentalCarsOffer) -> Unit,
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -161,6 +178,7 @@ private fun RentalCarContent(
                                 isSelected = offer.id == state.selectedOfferId,
                                 isCheapest = offer.id == state.cheapestOffer?.id,
                                 onSelect = { onSelectOffer(offer) },
+                                onOpenPartnerSite = { onOpenPartnerSite(offer) },
                             )
                         }
                     }
@@ -344,6 +362,7 @@ private fun OfferCard(
     isSelected: Boolean,
     isCheapest: Boolean,
     onSelect: () -> Unit,
+    onOpenPartnerSite: () -> Unit,
 ) {
     val colors = JetTheme.colors
     val typography = JetTheme.typography
@@ -443,6 +462,44 @@ private fun OfferCard(
                 }
             }
         }
+
+        Spacer(Modifier.height(10.dp))
+
+        OpenPartnerSiteButton(companyLabel = offer.company.label, onClick = onOpenPartnerSite)
+    }
+}
+
+/**
+ * Secondary hand-off action on each offer: opens the brand's own reservation site
+ * (via [RentalcarDeepLinks]) prefilled with the demo itinerary. Styled like the sort
+ * chips — quiet accent outline, so it never competes with the primary Select button.
+ */
+@Composable
+private fun OpenPartnerSiteButton(companyLabel: String, onClick: () -> Unit) {
+    val colors = JetTheme.colors
+    val haptics = LocalHapticFeedback.current
+    Row(
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.accent.copy(alpha = 0.10f))
+            .border(0.6.dp, colors.accent.copy(alpha = 0.30f), RoundedCornerShape(12.dp))
+            .clickable {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+            .semantics { role = Role.Button }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = null,
+            tint = colors.accent,
+            modifier = Modifier.size(14.dp),
+        )
+        Text("Open in $companyLabel", style = JetTheme.typography.label, color = colors.accent)
     }
 }
 
@@ -485,6 +542,9 @@ private fun EmptyState() {
 private const val MIN_DAYS = 1
 private const val MAX_DAYS = 60
 
+/** Pickup point for partner hand-offs — the demo trip's origin airport (LAS, per the mock itinerary). */
+private const val PICKUP_LOCATION = "LAS"
+
 private fun dayWord(days: Int): String = if (days == 1) "day" else "days"
 
 private fun money(amount: Double): String = "$" + String.format(Locale.US, "%,.2f", amount)
@@ -524,6 +584,7 @@ private fun RentalCarContentPreview() {
             onDaysChange = {},
             onIncrementDays = {},
             onDecrementDays = {},
+            onOpenPartnerSite = {},
         )
     }
 }
@@ -539,6 +600,7 @@ private fun RentalCarEmptyPreview() {
             onDaysChange = {},
             onIncrementDays = {},
             onDecrementDays = {},
+            onOpenPartnerSite = {},
         )
     }
 }

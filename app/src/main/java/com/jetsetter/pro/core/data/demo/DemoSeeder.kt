@@ -48,7 +48,8 @@ class DemoSeeder @Inject constructor(
 
     /** Leaves demo mode. Data stays as-is; the presenter can reset or keep exploring. */
     suspend fun disableDemoMode() {
-        WorkManager.getInstance(context).cancelUniqueWork(DisruptionMonitorWorker.UNIQUE_NAME)
+        // Cancel only the scripted one-shot — the live periodic monitor (UNIQUE_NAME) keeps running.
+        WorkManager.getInstance(context).cancelUniqueWork(DisruptionMonitorWorker.DEMO_ALERT_UNIQUE_NAME)
         prefs.setDemoMode(false)
     }
 
@@ -83,7 +84,7 @@ class DemoSeeder @Inject constructor(
             )
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
-            DisruptionMonitorWorker.UNIQUE_NAME,
+            DisruptionMonitorWorker.DEMO_ALERT_UNIQUE_NAME,
             ExistingWorkPolicy.REPLACE,
             request,
         )

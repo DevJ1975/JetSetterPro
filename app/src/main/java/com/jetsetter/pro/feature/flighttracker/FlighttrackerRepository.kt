@@ -1,26 +1,35 @@
 package com.jetsetter.pro.feature.flighttracker
 
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.data.remote.FlightAwareFlight
+import com.jetsetter.pro.core.data.remote.FlightAwareService
+import com.jetsetter.pro.core.data.remote.getOrNull
+import com.jetsetter.pro.core.util.IsoDates
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import java.time.Duration
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * In-memory mock backing for the Flight Tracker feature. Mirrors the shape of a real flight-status
- * API (search / filter by ident) without any network — the live integration (FlightAware AeroAPI)
- * is documented in the feature parity guide.
+ * Backing store for the Flight Tracker feature. Live-when-configured (plan B6): [trackByIdent]
+ * resolves an ident through FlightAware AeroAPI when the key is present and maps the result onto
+ * [FlightTrackerFlight]'s offset-from-now schedule model; the in-memory mock board below is both
+ * the unconfigured fallback and the browseable demo data (AeroAPI has no "list random flights"
+ * endpoint, so the board itself stays mock either way).
  *
- * Schedules are expressed as offsets from "now" (see [FlightTrackerFlight]) so the demo board always
- * shows a believable mix of boarding / airborne / landed flights. The tester's recent searches are
- * the only mutable state, persisted as a Moshi-serialized JSON list via [ModuleStateStore]
- * (key [RECENTS_KEY]) — the same Moshi idiom Room uses in `core/data/local/Converters.kt` — so they
- * survive app restarts.
+ * Mock schedules are expressed as offsets from "now" (see [FlightTrackerFlight]) so the demo board
+ * always shows a believable mix of boarding / airborne / landed flights. The tester's recent
+ * searches are the only mutable state, persisted as a Moshi-serialized JSON list via
+ * [ModuleStateStore] (key [RECENTS_KEY]) — the same Moshi idiom Room uses in
+ * `core/data/local/Converters.kt` — so they survive app restarts.
  */
 @Singleton
 class FlighttrackerRepository @Inject constructor(
     private val store: ModuleStateStore,
+    private val flightAware: FlightAwareService,
 ) {
     private val recentsAdapter = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
@@ -116,6 +125,21 @@ class FlighttrackerRepository @Inject constructor(
     /** The flight surfaced on first open, before the tester searches. */
     fun featuredFlight(): FlightTrackerFlight = flights.first()
 
+    /**
+     * Live-first lookup (plan B6): when FlightAware is configured, resolve [ident] via AeroAPI
+     * and map the soonest matching leg onto the tracker model; an unconfigured key, a fetch
+     * failure, or an unmappable payload all fall back to the mock board via [findByIdent] — the
+     * screen never surfaces an error state it can't act on.
+     */
+    suspend fun trackByIdent(ident: String): FlightTrackerFlight? {
+        if (flightAware.isConfigured) {
+            val live = flightAware.flightByIdent(ident).getOrNull()
+                ?.firstNotNullOfOrNull { it.toTrackerFlight(now = Instant.now()) }
+            if (live != null) return live
+        }
+        return findByIdent(ident)
+    }
+
     /** Exact, case- and space-insensitive lookup by ident; null when nothing matches. */
     fun findByIdent(ident: String): FlightTrackerFlight? {
         val needle = ident.normalizeIdent()
@@ -153,4 +177,38 @@ class FlighttrackerRepository @Inject constructor(
         const val RECENTS_KEY = "flighttracker_recent_idents"
         const val MAX_RECENTS = 6
     }
+}
+
+// ── Live mapping (pure, unit-tested in FlightAwareMappingTest) ───────────────
+
+/**
+ * Maps an AeroAPI flight onto the tracker's offset-from-now schedule model as of [now]:
+ * `departureOffsetMin` = scheduled departure − now (negative once departed), `durationMin` =
+ * scheduled gate-to-gate span, `delayMin` = AeroAPI's reported departure delay (seconds → whole
+ * minutes, early departures clamped to 0 — the model has no "early" concept). Null when the
+ * ident or either scheduled time is missing/unparseable, or the duration isn't positive —
+ * callers fall back to the mock board.
+ */
+internal fun FlightAwareFlight.toTrackerFlight(now: Instant): FlightTrackerFlight? {
+    val flightIdent = ident?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val scheduledOutAt = IsoDates.parseDateTime(scheduledOut) ?: return null
+    val scheduledInAt = IsoDates.parseDateTime(scheduledIn) ?: return null
+    val durationMin = Duration.between(scheduledOutAt, scheduledInAt).toMinutes()
+    if (durationMin <= 0L) return null
+
+    val originCode = origin?.codeIata?.takeIf { it.isNotBlank() }
+    val destinationCode = destination?.codeIata?.takeIf { it.isNotBlank() }
+    return FlightTrackerFlight(
+        ident = flightIdent,
+        airline = operator?.trim()?.takeIf { it.isNotEmpty() } ?: flightIdent,
+        originCode = originCode ?: "—",
+        originCity = origin?.city?.trim()?.takeIf { it.isNotEmpty() } ?: originCode ?: "—",
+        destinationCode = destinationCode ?: "—",
+        destinationCity = destination?.city?.trim()?.takeIf { it.isNotEmpty() } ?: destinationCode ?: "—",
+        gate = gateOrigin?.takeIf { it.isNotBlank() } ?: "—",
+        terminal = terminalOrigin?.takeIf { it.isNotBlank() } ?: "—",
+        departureOffsetMin = Duration.between(now, scheduledOutAt).toMinutes(),
+        durationMin = durationMin,
+        delayMin = ((departureDelaySeconds ?: 0L) / 60L).coerceAtLeast(0L),
+    )
 }

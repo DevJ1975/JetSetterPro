@@ -7,8 +7,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.jetsetter.pro.feature.expenses.ExpensesScreen
 import com.jetsetter.pro.feature.home.HomeScreen
 import com.jetsetter.pro.feature.iris.IrisChatScreen
@@ -39,13 +41,37 @@ fun JetNavHost(navController: NavHostController, modifier: Modifier = Modifier) 
         composable(JetDestination.IRIS.route) { IrisChatScreen() }
         composable(JetDestination.EXPENSES.route) { ExpensesScreen() }
         composable(JetDestination.MORE.route) {
-            MoreScreen(onOpenFeature = { route -> navController.navigate(route) })
+            MoreScreen(
+                onOpenFeature = { route -> navController.navigate(route) },
+                // Successful account deletion (cloud + local wipe): collapse the stack onto a
+                // fresh Home so no screen keeps showing just-deleted data.
+                onAccountDeleted = {
+                    navController.navigate(JetDestination.HOME.route) {
+                        popUpTo(JetDestination.HOME.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+            )
         }
         // Every ported feature module, reached from the More → Features menu. These push in
         // from the right and slide back out on Back, so drilling in feels like a stack.
+        // Flight Tracker additionally accepts an optional ?ident= query arg (IRIS `trackFlight`
+        // deep link); plain "flighttracker" navigation still matches via the null default.
         featureCatalog.forEach { entry ->
+            val isFlightTracker = entry.route == "flighttracker"
             composable(
-                route = entry.route,
+                route = if (isFlightTracker) "flighttracker?ident={ident}" else entry.route,
+                arguments = if (isFlightTracker) {
+                    listOf(
+                        navArgument("ident") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    )
+                } else {
+                    emptyList()
+                },
                 enterTransition = { slideIntoContainer(SlideDirection.Start, tween(280)) + fadeIn(tween(280)) },
                 popExitTransition = { slideOutOfContainer(SlideDirection.End, tween(260)) + fadeOut(tween(200)) },
             ) {

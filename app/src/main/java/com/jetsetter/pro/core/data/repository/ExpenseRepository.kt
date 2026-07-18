@@ -1,6 +1,6 @@
 package com.jetsetter.pro.core.data.repository
 
-import com.jetsetter.pro.core.auth.AuthRepository
+import com.jetsetter.pro.core.backend.CloudBackend
 import com.jetsetter.pro.core.data.local.ExpenseDao
 import com.jetsetter.pro.core.data.local.toDomain
 import com.jetsetter.pro.core.data.local.toEntity
@@ -8,7 +8,6 @@ import com.jetsetter.pro.core.data.mock.MockData
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.di.ApplicationScope
 import com.jetsetter.pro.core.model.Expense
-import com.jetsetter.pro.core.sync.SupabaseExpenseSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +20,8 @@ import javax.inject.Singleton
 
 /**
  * Single source of truth for expenses — the expense analogue of [TripRepository]. Room is the
- * offline-first store; Supabase ([SupabaseExpenseSync]) provides cross-device sync when signed in.
+ * offline-first store; the cloud seam ([CloudBackend.expenses]) provides cross-device sync when
+ * signed in.
  *
  * Sync model (see [initSync]): on sign-in we **merge** — adopt the cloud's expenses into Room and
  * push any local-only expenses up (non-destructive, no offline write queue yet). A Realtime
@@ -31,8 +31,7 @@ import javax.inject.Singleton
 @Singleton
 class ExpenseRepository @Inject constructor(
     private val expenseDao: ExpenseDao,
-    private val authRepository: AuthRepository,
-    private val expenseSync: SupabaseExpenseSync,
+    private val backend: CloudBackend,
     private val moduleState: ModuleStateStore,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
@@ -75,24 +74,25 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun add(expense: Expense) {
         expenseDao.upsert(expense.toEntity())
-        val uid = authRepository.currentUid() ?: return
-        appScope.launch { expenseSync.push(uid, expense) }
+        val uid = backend.currentSession()?.uid ?: return
+        appScope.launch { backend.expenses.upsert(uid, expense) }
     }
 
     suspend fun delete(id: String) {
         expenseDao.delete(id)
-        val uid = authRepository.currentUid() ?: return
-        appScope.launch { expenseSync.delete(uid, id) }
+        val uid = backend.currentSession()?.uid ?: return
+        appScope.launch { backend.expenses.delete(uid, id) }
     }
 
     /**
-     * Idempotent (runs once per process). Signs in anonymously, merges Room ⇄ Supabase, then
-     * starts the Realtime listener. Offline / sign-in failure falls back to local seed data.
+     * Idempotent (runs once per process). Signs in anonymously, merges Room ⇄ cloud, then
+     * starts the Realtime listener. Offline / sign-in failure falls back to local seed data
+     * ([CloudBackend.ensureSignedIn] returns null instead of throwing).
      */
     suspend fun initSync() {
         if (!syncStarted.compareAndSet(false, true)) return
 
-        val uid = runCatching { authRepository.ensureSignedIn() }.getOrNull()
+        val uid = backend.ensureSignedIn()
         if (uid == null) {
             seedIfEmpty()
             return
@@ -101,12 +101,12 @@ class ExpenseRepository @Inject constructor(
         // One-time, non-destructive merge: adopt remote, then push any local-only expenses up.
         runCatching {
             seedIfEmpty()
-            val remote = expenseSync.getOnce(uid)
+            val remote = backend.expenses.getOnce(uid)
             val remoteIds = remote.map { it.id }.toSet()
             if (remote.isNotEmpty()) expenseDao.upsertAll(remote.map { it.toEntity() })
             expenseDao.getAll()
                 .filter { it.id !in remoteIds && it.id !in MockData.seedExpenseIds }
-                .forEach { expenseSync.push(uid, it.toDomain()) }
+                .forEach { backend.expenses.upsert(uid, it.toDomain()) }
         }.onFailure { seedIfEmpty() }
 
         startLiveSync(uid)
@@ -114,14 +114,14 @@ class ExpenseRepository @Inject constructor(
 
     /**
      * Pulls remote changes into Room so other devices' edits *and deletions* show up locally.
-     * Writes go straight to the DAO (not [add]), so they don't re-trigger the Supabase mirror —
+     * Writes go straight to the DAO (not [add]), so they don't re-trigger the cloud mirror —
      * no sync loop. A server-confirmed empty result clears local expenses; transient fetch
-     * failures are filtered out upstream in [SupabaseExpenseSync.observe] (never emitted as empty).
+     * failures are filtered out upstream in [CloudBackend.expenses]' observe (never emitted as empty).
      */
     private fun startLiveSync(uid: String) {
         if (syncJob != null) return
         syncJob = appScope.launch {
-            expenseSync.observe(uid)
+            backend.expenses.observe(uid)
                 .catch { /* realtime error: keep local data; resync next launch */ }
                 .collect { remote ->
                     if (remote.isEmpty()) {
