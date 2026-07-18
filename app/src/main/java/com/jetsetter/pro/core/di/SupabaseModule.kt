@@ -1,13 +1,17 @@
 package com.jetsetter.pro.core.di
 
+import android.content.Context
+import com.jetsetter.pro.core.auth.EncryptedSessionManager
 import com.jetsetter.pro.core.secrets.Secrets
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
 import javax.inject.Singleton
@@ -22,8 +26,10 @@ import javax.inject.Singleton
  * doctrine the rest of the app follows (see [Secrets.isConfigured]).
  *
  * Postgrest covers table reads/writes; Auth supplies the per-user session that RLS policies
- * key off; Realtime delivers live cross-device updates (postgres changes). Add Storage the same
- * way when a feature needs it.
+ * key off — persisted at rest via [EncryptedSessionManager] (Keystore-encrypted, plan B5)
+ * instead of the default plaintext store; Realtime delivers live cross-device updates (postgres
+ * changes); Functions invokes edge functions (the `delete-account` deletion flow). Add Storage
+ * the same way when a feature needs it.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -31,14 +37,17 @@ object SupabaseModule {
 
     @Provides
     @Singleton
-    fun provideSupabaseClient(): SupabaseClient? {
+    fun provideSupabaseClient(@ApplicationContext context: Context): SupabaseClient? {
         val url = Secrets.supabaseUrl
         val key = Secrets.supabaseAnonKey
         if (!Secrets.isConfigured(url) || !Secrets.isConfigured(key)) return null
         return createSupabaseClient(supabaseUrl = url, supabaseKey = key) {
             install(Postgrest)
-            install(Auth)
+            install(Auth) {
+                sessionManager = EncryptedSessionManager(context, url)
+            }
             install(Realtime)
+            install(Functions)
         }
     }
 }

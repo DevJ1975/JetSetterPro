@@ -1,5 +1,7 @@
 package com.jetsetter.pro.core.intelligence
 
+import com.jetsetter.pro.core.backend.CloudBackend
+import com.jetsetter.pro.core.backend.TravelSignalDoc
 import com.jetsetter.pro.core.data.mock.MockData
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.data.prefs.PrefKeys
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,8 +49,15 @@ import javax.inject.Singleton
  * signal for each trip whose end date has passed (seed/demo trips excluded — the profile never
  * learns from demo data, plan R10e).
  *
- * PRIVACY INVARIANT (see [TravelSignal]): signals and everything derived from them stay on-device;
- * they are never sent to third-party APIs.
+ * CLOUD HOOKUP (plan B5a): each accepted signal is mirrored best-effort through
+ * [CloudBackend.travelSignals] on the app scope (the [TripRepository.upsert] idiom — the local
+ * write returns immediately, a failed mirror is silently dropped), and on sign-in the remote log
+ * is merged by id into the local one (the [TripRepository.initSync] reconcile shape: adopt
+ * remote-only signals, push local-only ones up). With the live project's `travel_signals` table
+ * not yet created and anonymous auth off, every cloud path degrades to a silent no-op.
+ *
+ * PRIVACY INVARIANT (see [TravelSignal]): signals and everything derived from them stay on-device
+ * (plus the user's own cloud sync); they are never sent to third-party APIs.
  */
 @Singleton
 class TravelProfileStore @Inject constructor(
@@ -55,7 +65,8 @@ class TravelProfileStore @Inject constructor(
     private val userPreferences: UserPreferencesRepository,
     private val tripRepository: TripRepository,
     private val personaGenerator: TravelPersonaGenerator,
-    @ApplicationScope appScope: CoroutineScope,
+    private val backend: CloudBackend,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) {
     private val moshi = Moshi.Builder()
         .add(TravelSignalKindAdapter())
@@ -100,13 +111,23 @@ class TravelProfileStore @Inject constructor(
                 store.remove(LEGACY_TRAVEL_PROFILE_KEY)
             }
         }
+        // Cloud hookup (plan B5a): merge-by-id pull once per signed-in uid. distinctUntilChanged
+        // over non-null uids mirrors initSync's once-per-process semantics; a failed merge leaves
+        // the local log untouched (best-effort doctrine).
+        appScope.launch {
+            backend.session
+                .mapNotNull { it?.uid }
+                .distinctUntilChanged()
+                .collect { uid -> runCatching { mergeCloudSignals(uid) } }
+        }
     }
 
     // ── Signals ─────────────────────────────────────────────────────────────────────────────────
 
     /**
      * Appends [signal] to the log (FIFO cap 2000) — a SILENT no-op when the consent mapping
-     * disallows its kind (spec §1.6). Invalidates the cached profile on a real write.
+     * disallows its kind (spec §1.6). Invalidates the cached profile on a real write and mirrors
+     * the accepted signal to the cloud best-effort.
      */
     suspend fun record(signal: TravelSignal) {
         val prefs = userPreferences.preferences.first()
@@ -116,6 +137,7 @@ class TravelProfileStore @Inject constructor(
             store.save(PrefKeys.TRAVEL_SIGNALS, signalsAdapter.toJson(updated))
         }
         cachedProfile = null
+        pushSignal(signal)
     }
 
     /** Feedback on a proactive suggestion: value = suggestion-kind name, accepted flag attribute. */
@@ -241,6 +263,46 @@ class TravelProfileStore @Inject constructor(
         return generated
     }
 
+    // ── Cloud sync (plan B5a) ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Best-effort cloud mirror of one accepted signal through [CloudBackend.travelSignals], fired
+     * on [appScope] so the local write returns immediately — the [TripRepository.upsert] idiom.
+     * No session (signed out / anonymous auth disabled server-side) → silent no-op; the sign-in
+     * merge pushes local-only signals up later.
+     */
+    private fun pushSignal(signal: TravelSignal) {
+        val uid = backend.currentSession()?.uid ?: return
+        appScope.launch { backend.travelSignals.upsert(uid, TravelSignalCloudCodec.toDoc(signal)) }
+    }
+
+    /**
+     * Sign-in reconcile, mirroring [TripRepository.initSync]'s non-destructive merge: adopt
+     * remote-only signals into the local log (merged by id, timestamp-ordered, FIFO-capped) and
+     * push local-only signals up. Consent-gated like everything else — a silent no-op while
+     * learning is disabled. Remote docs with unknown kinds or malformed payloads are skipped, and
+     * any failure leaves the local log untouched (the cloud is never authoritative over it).
+     */
+    private suspend fun mergeCloudSignals(uid: String) {
+        if (!userPreferences.preferences.first().learningEnabled) return
+        val remote = runCatching { backend.travelSignals.getOnce(uid) }
+            .getOrDefault(emptyList())
+            .mapNotNull { TravelSignalCloudCodec.fromDoc(it) }
+        val local: List<TravelSignal>
+        writeMutex.withLock {
+            local = signals()
+            val merged = TravelProfileStoreLogic.mergeById(local, remote)
+            if (merged != local) {
+                store.save(PrefKeys.TRAVEL_SIGNALS, signalsAdapter.toJson(merged))
+                cachedProfile = null
+            }
+        }
+        // Push local-only signals up (best-effort; ids the cloud already holds are skipped).
+        val remoteIds = remote.mapTo(HashSet()) { it.id }
+        local.filter { it.id !in remoteIds }
+            .forEach { backend.travelSignals.upsert(uid, TravelSignalCloudCodec.toDoc(it)) }
+    }
+
     // ── Internals ───────────────────────────────────────────────────────────────────────────────
 
     private suspend fun signals(): List<TravelSignal> =
@@ -340,6 +402,23 @@ internal object TravelProfileStoreLogic {
         cap: Int = MAX_SIGNALS,
     ): List<TravelSignal> = (existing + signal).takeLast(cap)
 
+    /**
+     * Sign-in reconcile of the local signal log with the cloud's (plan B5a): a union keyed by id —
+     * [local] wins on an id conflict (signals are immutable events, so a conflict IS the same
+     * signal) — ordered by timestamp (unparsable ones sort oldest; ties keep local-first order)
+     * and FIFO-capped keep-newest like [appendCapped].
+     */
+    fun mergeById(
+        local: List<TravelSignal>,
+        remote: List<TravelSignal>,
+        cap: Int = MAX_SIGNALS,
+    ): List<TravelSignal> {
+        val localIds = local.mapTo(HashSet()) { it.id }
+        return (local + remote.filter { it.id !in localIds })
+            .sortedBy { IsoDates.parseDateTime(it.timestamp) ?: Instant.EPOCH }
+            .takeLast(cap)
+    }
+
     /** Count of suggestionFeedback signals for [kind] with accepted=false. */
     fun dismissedCount(signals: List<TravelSignal>, kind: String): Int =
         signals.count {
@@ -365,5 +444,53 @@ internal object TravelProfileStoreLogic {
         val start = IsoDates.parseDate(trip.startDate) ?: return null
         val end = IsoDates.parseDate(trip.endDate) ?: return null
         return ChronoUnit.DAYS.between(start, end).takeIf { it >= 0 }
+    }
+}
+
+/**
+ * Pure [TravelSignal] ⇄ [TravelSignalDoc] codec for the cloud hookup (plan B5a). The doc's
+ * [TravelSignalDoc.payloadJson] carries the signal's value/attributes/timestamp/source as one
+ * JSON object — the shape stored in `travel_signals.payload` jsonb — so the cloud schema stays
+ * stable while signal fields evolve; the kind's camelCase [TravelSignal.Kind.wireName] travels in
+ * the doc's own `kind` column, and the signal timestamp doubles as the doc's `updatedAt` (signals
+ * are immutable events). Decoding tolerates unknown kinds (a newer client) and malformed payloads
+ * by returning null — the sign-in merge simply skips them.
+ */
+internal object TravelSignalCloudCodec {
+
+    private val moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
+    private val payloadAdapter = moshi.adapter(Payload::class.java)
+
+    /** The `payload` jsonb object shape — camelCase keys, the iOS-shared encoding. */
+    internal data class Payload(
+        val value: String = "",
+        val attributes: Map<String, String> = emptyMap(),
+        val timestamp: String = "",
+        val source: String = "",
+    )
+
+    fun toDoc(signal: TravelSignal): TravelSignalDoc = TravelSignalDoc(
+        id = signal.id,
+        kind = signal.kind.wireName,
+        payloadJson = payloadAdapter.toJson(
+            Payload(signal.value, signal.attributes, signal.timestamp, signal.source),
+        ),
+        updatedAt = signal.timestamp,
+    )
+
+    /** Null when [doc]'s kind is unknown or its payload isn't a decodable JSON object. */
+    fun fromDoc(doc: TravelSignalDoc): TravelSignal? {
+        val kind = TravelSignal.Kind.fromWireName(doc.kind) ?: return null
+        val payload = runCatching { payloadAdapter.fromJson(doc.payloadJson) }.getOrNull() ?: return null
+        return TravelSignal(
+            id = doc.id,
+            kind = kind,
+            value = payload.value,
+            attributes = payload.attributes,
+            timestamp = payload.timestamp,
+            source = payload.source,
+        )
     }
 }

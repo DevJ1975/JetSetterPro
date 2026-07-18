@@ -158,12 +158,19 @@ dependencies {
     // Dependency injection
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    // @HiltWorker support (plan R6): constructor-injected WorkManager workers
+    // (DisruptionMonitorWorker) via HiltWorkerFactory + the androidx.hilt compiler.
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 
     // Local persistence
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
+    // EncryptedSharedPreferences — Keystore-backed persistence for the Supabase auth session
+    // (core/auth/EncryptedSessionManager). Deprecated upstream at 1.1.0; see libs.versions.toml.
+    implementation(libs.androidx.security.crypto)
 
     // Networking
     implementation(libs.retrofit)
@@ -180,6 +187,8 @@ dependencies {
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.auth)
     implementation(libs.supabase.realtime)
+    // Edge-function invocation — the `delete-account` account-deletion flow (plan B5b).
+    implementation(libs.supabase.functions)
     implementation(libs.ktor.client.okhttp)
 
     // Async, images, background work

@@ -62,12 +62,15 @@ import com.jetsetter.pro.ui.theme.JetTheme
 
 /**
  * Stateful entry point: owns the [SettingsViewModel], collects its [MoreUiState] lifecycle-aware,
- * and forwards events. Holds no logic — see [MoreContent].
+ * and forwards events. Holds no logic — see [MoreContent]. [onAccountDeleted] fires only after a
+ * fully successful account deletion (cloud + local wipe) so the host can navigate to a fresh
+ * Home; a failed deletion never fires it (nothing was wiped — the card's notice explains).
  */
 @Composable
 fun MoreScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onOpenFeature: (String) -> Unit = {},
+    onAccountDeleted: () -> Unit = {},
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     MoreContent(
@@ -79,6 +82,10 @@ fun MoreScreen(
         onOpenFeature = onOpenFeature,
         onSetTtsEnabled = viewModel::setTtsEnabled,
         onDownloadOnDeviceAi = viewModel::downloadOnDeviceModel,
+        onSubmitAccountAuth = viewModel::submitAccountAuth,
+        onSignOutCloud = viewModel::signOutOfCloud,
+        onDeleteAccount = { viewModel.deleteAccount(onDeleted = onAccountDeleted) },
+        onDismissAccountNotice = viewModel::dismissAccountNotice,
     )
 }
 
@@ -97,6 +104,10 @@ private fun MoreContent(
     onOpenFeature: (String) -> Unit,
     onSetTtsEnabled: (Boolean) -> Unit = {},
     onDownloadOnDeviceAi: () -> Unit = {},
+    onSubmitAccountAuth: (AccountAuthMode, String, String) -> Unit = { _, _, _ -> },
+    onSignOutCloud: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {},
+    onDismissAccountNotice: () -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -147,6 +158,16 @@ private fun MoreContent(
                 Spacer(Modifier.height(spacing.medium))
                 LabeledField("Home airport", prefs.homeAirport, "e.g. LAS", onHomeAirportChange)
             }
+        }
+
+        Section(title = "Account") {
+            AccountCard(
+                state = state.account,
+                onSubmitAuth = onSubmitAccountAuth,
+                onSignOut = onSignOutCloud,
+                onDeleteAccount = onDeleteAccount,
+                onDismissNotice = onDismissAccountNotice,
+            )
         }
 
         Section(title = "IRIS") {

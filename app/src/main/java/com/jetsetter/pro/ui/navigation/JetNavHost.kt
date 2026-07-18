@@ -41,7 +41,17 @@ fun JetNavHost(navController: NavHostController, modifier: Modifier = Modifier) 
         composable(JetDestination.IRIS.route) { IrisChatScreen() }
         composable(JetDestination.EXPENSES.route) { ExpensesScreen() }
         composable(JetDestination.MORE.route) {
-            MoreScreen(onOpenFeature = { route -> navController.navigate(route) })
+            MoreScreen(
+                onOpenFeature = { route -> navController.navigate(route) },
+                // Successful account deletion (cloud + local wipe): collapse the stack onto a
+                // fresh Home so no screen keeps showing just-deleted data.
+                onAccountDeleted = {
+                    navController.navigate(JetDestination.HOME.route) {
+                        popUpTo(JetDestination.HOME.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+            )
         }
         // Every ported feature module, reached from the More → Features menu. These push in
         // from the right and slide back out on Back, so drilling in feels like a stack.
