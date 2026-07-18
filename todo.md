@@ -94,3 +94,5 @@ Snapshot after Phase 1 iOS-parity landed (`08eed32`) + nav/voice fixes (`7a64958
 - Loyalty expiration fields (unblocks tierAtRisk trigger); real bag flag (rideOnLanding estimator).
 - Branch: 3+ unpushed commits on `feat/phase-a-supabase-backend`; `origin/main` diverged onto a
   Firebase/demo line — land via PR when ready, never direct-push main.
+
+- Booking imagery: see docs/BOOKING_IMAGERY_PLAN.md (researched 2026-07-17) — Rapid photos for hotels, SIPP illustrations + Rapid Car waitlist for cars, bundled airline SVGs + logostream, Pexels destinations. Needs: API_PEXELS key (free), Rapid Car beta signup.
