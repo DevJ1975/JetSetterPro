@@ -25,9 +25,11 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -108,6 +110,9 @@ private fun DepartureOptimizerContent(
     // @Preview/inspection mode, where LaunchedEffect doesn't run, so static previews still render.
     val inspection = LocalInspectionMode.current
     var entered by remember { mutableStateOf(inspection) }
+    // In-app route guidance (product rule: the experience never leaves the app). Saveable so a
+    // rotation or dark-mode toggle mid-demo doesn't dismiss the sheet.
+    var showRouteSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
     val enter by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,
@@ -144,6 +149,7 @@ private fun DepartureOptimizerContent(
 
                 FlightHeaderCard(est)
                 LeaveByCard(est)
+                NavigateButton(est = est, onOpenRoute = { showRouteSheet = true })
                 StatRow(est)
                 ArithmeticCard(est, onShowAdjust = onShowAdjust)
                 RiskCard(est)
@@ -186,6 +192,10 @@ private fun DepartureOptimizerContent(
                 )
             }
         }
+    }
+
+    if (showRouteSheet) {
+        RouteMapSheet(est = est, onDismiss = { showRouteSheet = false })
     }
 
     if (state.showAdjustSheet) {
@@ -263,6 +273,32 @@ private fun StatusPill(label: String, color: Color) {
     ) {
         Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(color))
         Text(label, style = JetTheme.typography.label, color = color)
+    }
+}
+
+/**
+ * Opens the in-app route guidance sheet ([RouteMapSheet]) — map, live conditions, and a simulated
+ * drive to the airport, all without leaving JetSetter Pro (the product's in-app-only rule).
+ */
+@Composable
+private fun NavigateButton(est: DepartureOptimizerEstimate, onOpenRoute: () -> Unit) {
+    val colors = JetTheme.colors
+    val haptics = LocalHapticFeedback.current
+
+    Button(
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            onOpenRoute()
+        },
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colors.success,
+            contentColor = Color.White,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(Icons.Filled.Navigation, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(JetTheme.spacing.small))
+        Text("Navigate to ${est.airport.substringBefore(" (")}", style = JetTheme.typography.label, color = Color.White)
     }
 }
 
@@ -417,6 +453,8 @@ private fun RiskCard(est: DepartureOptimizerEstimate) {
         RiskRow(Icons.Filled.DirectionsCar, "Traffic", "${formatDuration(est.driveMinutes)} drive", est.trafficRisk)
         Spacer(Modifier.height(8.dp))
         RiskRow(Icons.Filled.Security, "Security", "${formatDuration(est.tsaWaitMinutes)} wait", est.securityRisk)
+        Spacer(Modifier.height(8.dp))
+        RiskRow(Icons.Filled.WbSunny, "Weather", est.weatherSummary, est.weatherRisk)
     }
 }
 

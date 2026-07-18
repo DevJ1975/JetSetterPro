@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jetsetter.pro.core.ai.ActionRouter
 import com.jetsetter.pro.core.ai.IrisNavEvent
+import com.jetsetter.pro.core.data.demo.DemoSeeder
 import com.jetsetter.pro.core.data.mock.MockData
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.data.prefs.PrefKeys
+import com.jetsetter.pro.core.data.prefs.UserPreferencesRepository
 import com.jetsetter.pro.core.data.repository.ExpenseRepository
 import com.jetsetter.pro.core.data.repository.TripRepository
 import com.jetsetter.pro.core.intelligence.IrisSuggestion
@@ -47,6 +49,8 @@ class HomeViewModel @Inject constructor(
     private val actionRouter: ActionRouter,
     private val userDataIndexer: UserDataIndexer,
     private val kbFactsResolver: KbFactsResolver,
+    private val demoSeeder: DemoSeeder,
+    prefsRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     init {
@@ -127,8 +131,9 @@ class HomeViewModel @Inject constructor(
             combine(tripRepository.observeTrips(), expensesRepository.observeExpenses()) { t, e -> t to e },
             storeState,
             travelProfileStore.observeProfile(),
+            prefsRepository.preferences,
             ticker,
-        ) { (trips, expenses), store, profile, _ ->
+        ) { (trips, expenses), store, profile, prefs, _ ->
             // Keep the personal RAG index current (no-op on devices without the embedder).
             // Fire-and-forget: it feeds the on-device tier's grounding, not this emission.
             viewModelScope.launch { userDataIndexer.reindex(trips, expenses) }
@@ -190,8 +195,18 @@ class HomeViewModel @Inject constructor(
                 upcomingTrip = trips.firstOrNull(),
                 expenseSummary = summarize(expenses),
                 alerts = alerts,
+                demoMode = prefs.demoMode,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    /**
+     * Alpha convenience for on-device walkthroughs: the Home-header DEMO chip flips demo mode
+     * without leaving the dashboard. Same seeder path as More → Presentation — enabling re-seeds
+     * the curated dataset and arms the scripted disruption push; disabling leaves data as-is.
+     */
+    fun setDemoMode(enabled: Boolean) = viewModelScope.launch {
+        if (enabled) demoSeeder.enableDemoMode() else demoSeeder.disableDemoMode()
+    }
 
     /**
      * Dismiss an alert: the id joins the persisted set (suppressible kinds stay gone; never-

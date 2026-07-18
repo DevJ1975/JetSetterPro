@@ -643,8 +643,8 @@ private fun FlightBoardContentPreview() {
                 airportCode = "LAS",
                 direction = FlightBoardDirection.DEPARTURES,
                 allFlights = listOf(
-                    FlightBoardItem("d1", "06:15", "DL 1423", "Delta", "Atlanta", "C22", "T1", FlightBoardStatus.BOARDING, FlightBoardDirection.DEPARTURES),
                     FlightBoardItem("d2", "06:50", "AA 188", "American", "Dallas/Fort Worth", "B14", "T1", FlightBoardStatus.ON_TIME, FlightBoardDirection.DEPARTURES),
+                    FlightBoardItem("d1", "07:00", "DL 1423", "Delta", "Atlanta", "C22", "T3", FlightBoardStatus.DELAYED, FlightBoardDirection.DEPARTURES),
                     FlightBoardItem("d3", "07:30", "UA 642", "United", "Chicago O'Hare", "D55", "T3", FlightBoardStatus.ON_TIME, FlightBoardDirection.DEPARTURES),
                     FlightBoardItem("d4", "08:05", "WN 2210", "Southwest", "Denver", "B22", "T1", FlightBoardStatus.DELAYED, FlightBoardDirection.DEPARTURES),
                     FlightBoardItem("d7", "11:00", "NK 877", "Spirit", "Orlando", "C19", "T1", FlightBoardStatus.DEPARTED, FlightBoardDirection.DEPARTURES),

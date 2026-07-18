@@ -11,6 +11,7 @@ import com.jetsetter.pro.core.data.remote.FlightAwareFlight
 import com.jetsetter.pro.core.data.remote.FlightAwareService
 import com.jetsetter.pro.core.data.remote.getOrNull
 import com.jetsetter.pro.core.data.repository.TripRepository
+import com.jetsetter.pro.core.notifications.JetNotifier
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.assisted.Assisted
@@ -26,7 +27,15 @@ import javax.inject.Singleton
  * `DisruptionMonitorService` (which used BGTaskScheduler). Scheduled from
  * [com.jetsetter.pro.JetSetterApplication] as a 15-minute `PeriodicWorkRequest` (unique, KEEP)
  * only when FlightAware is configured; the actual check lives in [DisruptionCheck] so the
- * Disruption screen can run the identical logic on open.
+ * Disruption screen can run the identical logic on open. A newly-detected disruption raises a
+ * shade alert through [JetNotifier] (cabin-chime channel).
+ *
+ * The worker doubles as demo mode's scripted alert: [DemoSeeder][com.jetsetter.pro.core.data.demo.DemoSeeder]
+ * enqueues a one-shot (under [DEMO_ALERT_UNIQUE_NAME], so it never displaces the periodic
+ * monitor) carrying [KEY_TITLE]/[KEY_TEXT] input data; when input data is present the worker
+ * posts that copy directly instead of running a live check. The defaults mirror the seeded
+ * DisruptionRepository flight (DL 1423 delayed 1h 35m, 3 alternatives) so the shade alert and
+ * the Trip Disruption screen tell the same story.
  *
  * Always returns [Result.success]: the check is best-effort by doctrine (no key, no next flight,
  * offline, cloud down are all normal states), so there is nothing WorkManager should retry.
@@ -39,13 +48,46 @@ class DisruptionMonitorWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        runCatching { disruptionCheck.run() }
+        // Scripted (demo) branch: input data present → post the supplied copy and stop.
+        if (inputData.getString(KEY_TITLE) != null || inputData.getString(KEY_TEXT) != null) {
+            JetNotifier.postDisruptionAlert(
+                applicationContext,
+                inputData.getString(KEY_TITLE) ?: DEFAULT_TITLE,
+                inputData.getString(KEY_TEXT) ?: DEFAULT_TEXT,
+            )
+            return Result.success()
+        }
+
+        // Live branch: run the real check; a newly-detected disruption lands in the shade.
+        runCatching { disruptionCheck.run() }.getOrNull()?.let { outcome ->
+            outcome.detected?.let { detected ->
+                JetNotifier.postDisruptionAlert(
+                    applicationContext,
+                    "${outcome.ident}: ${detected.reason}",
+                    "Open Trip Disruption to review your rebooking options.",
+                )
+            }
+        }
         return Result.success()
     }
 
     companion object {
         const val UNIQUE_NAME = "disruption_monitor"
         const val INTERVAL_MINUTES = 15L
+
+        /** Unique name for demo mode's one-shot scripted alert (kept separate from [UNIQUE_NAME] —
+         * WorkManager unique names span one-time and periodic work, so sharing it would cancel or
+         * displace the live periodic monitor). */
+        const val DEMO_ALERT_UNIQUE_NAME = "disruption_demo_alert"
+        const val KEY_TITLE = "title"
+        const val KEY_TEXT = "text"
+
+        // Mirrors the seeded DisruptionRepository flight (DL 1423 delayed 1h 35m, 3 alternatives)
+        // so the shade alert and the Trip Disruption screen tell the same story.
+        const val DEFAULT_TITLE = "DL 1423 delayed 1h 35m"
+        const val DEFAULT_TEXT =
+            "Las Vegas → Atlanta now departs 8:35 AM. IRIS found 3 rebooking options — " +
+                "open Trip Disruption to confirm one."
     }
 }
 

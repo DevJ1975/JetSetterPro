@@ -1,5 +1,10 @@
 package com.jetsetter.pro.feature.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -58,13 +63,16 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.maps.GoogleMapOptions
@@ -105,6 +113,7 @@ fun HomeScreen(
         onOpenExpenses = onOpenExpenses,
         onDismissAlert = viewModel::dismissAlert,
         onAlertClick = viewModel::onAlertClick,
+        onSetDemoMode = viewModel::setDemoMode,
     )
 }
 
@@ -117,6 +126,7 @@ private fun HomeContent(
     onOpenExpenses: () -> Unit = {},
     onDismissAlert: (String) -> Unit = {},
     onAlertClick: (HomeAlert) -> Unit = {},
+    onSetDemoMode: (Boolean) -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -148,7 +158,7 @@ private fun HomeContent(
             .padding(top = spacing.large, bottom = spacing.xlarge),
         verticalArrangement = Arrangement.spacedBy(spacing.medium),
     ) {
-        HomeHeader()
+        HomeHeader(demoMode = state.demoMode, onSetDemoMode = onSetDemoMode)
         if (state.alerts.isNotEmpty()) {
             AlertsCard(alerts = state.alerts, onDismiss = onDismissAlert, onClick = onAlertClick)
         }
@@ -163,12 +173,73 @@ private fun HomeContent(
 }
 
 @Composable
-private fun HomeHeader() {
+private fun HomeHeader(demoMode: Boolean, onSetDemoMode: (Boolean) -> Unit) {
     val colors = JetTheme.colors
     val typography = JetTheme.typography
-    Column {
-        Text("Good morning", style = typography.bodyMedium, color = colors.textSecondary)
-        Text("Welcome aboard", style = typography.displayTitle, color = colors.textPrimary)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Good morning", style = typography.bodyMedium, color = colors.textSecondary)
+            Text("Welcome aboard", style = typography.displayTitle, color = colors.textPrimary)
+        }
+        DemoToggleChip(demoMode = demoMode, onSetDemoMode = onSetDemoMode)
+    }
+}
+
+/**
+ * Alpha-only convenience: flip Demo Mode straight from the dashboard during on-device
+ * walkthroughs — same seeder path as More → Presentation. Like that switch, enabling first
+ * requests the notification permission (API 33+) so the scripted disruption push can land;
+ * JetNotifier silently skips posting when it's denied.
+ */
+@Composable
+private fun DemoToggleChip(demoMode: Boolean, onSetDemoMode: (Boolean) -> Unit) {
+    val colors = JetTheme.colors
+    val typography = JetTheme.typography
+    val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { onSetDemoMode(true) }
+    val enableDemo = {
+        val needsPermission = Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        if (needsPermission) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            onSetDemoMode(true)
+        }
+    }
+
+    val tint = if (demoMode) colors.accent else colors.textSecondary
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(tint.copy(alpha = if (demoMode) 0.15f else 0.08f))
+            .border(0.6.dp, tint.copy(alpha = 0.35f), CircleShape)
+            .clickable {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                if (demoMode) onSetDemoMode(false) else enableDemo()
+            }
+            .semantics {
+                role = Role.Switch
+                stateDescription = if (demoMode) "Demo mode on" else "Demo mode off"
+            }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.AutoAwesome,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(14.dp),
+        )
+        Text(if (demoMode) "DEMO ON" else "DEMO", style = typography.label, color = tint)
     }
 }
 

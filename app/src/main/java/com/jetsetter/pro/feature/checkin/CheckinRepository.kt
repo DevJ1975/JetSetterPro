@@ -51,7 +51,9 @@ class CheckinRepository @Inject constructor() {
                 destinationCode = "LHR",
                 destinationCity = "London Heathrow",
                 gate = "E15",
-                seat = "12C",
+                // Seats sit inside their cabin's seat-map row range (see CheckinSeatMap.forFlight)
+                // so the held seat always appears, free, on the map.
+                seat = "16C",
                 cabin = Cabin.MAIN,
                 departureAtMillis = nowMillis + 28 * hour,
                 checkInClosesBeforeMinutes = 90,
@@ -66,7 +68,7 @@ class CheckinRepository @Inject constructor() {
                 destinationCode = "EWR",
                 destinationCity = "Newark",
                 gate = "B7",
-                seat = "22F",
+                seat = "9F",
                 cabin = Cabin.PREMIUM,
                 departureAtMillis = nowMillis + 30 * minute,
                 checkInClosesBeforeMinutes = 45,

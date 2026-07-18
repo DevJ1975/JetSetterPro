@@ -61,6 +61,17 @@ class ExpenseRepository @Inject constructor(
         moduleState.save(SEEDED_KEY, "true")
     }
 
+    /**
+     * Demo-mode reset: wipes the ledger and re-inserts the pristine [MockData.expenses]. Writes go
+     * straight to the DAO (not [add]) so seed rows are never mirrored up to Supabase, and the
+     * seeded flag is re-armed so [seedIfEmpty] stays a no-op afterwards.
+     */
+    suspend fun resetToSeed() {
+        expenseDao.deleteAll()
+        expenseDao.upsertAll(MockData.expenses.map { it.toEntity() })
+        moduleState.save(SEEDED_KEY, "true")
+    }
+
     suspend fun add(expense: Expense) {
         expenseDao.upsert(expense.toEntity())
         val uid = backend.currentSession()?.uid ?: return

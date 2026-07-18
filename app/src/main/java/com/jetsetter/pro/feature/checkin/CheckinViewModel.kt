@@ -122,9 +122,80 @@ class CheckinViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Opens the seat map for [flight]. Allowed while the window is OPEN — both for the initial
+     * check-in (confirm issues the boarding pass) and for a seat change on an issued pass.
+     */
+    fun openSeatPicker(flight: CheckInFlight) {
+        val now = System.currentTimeMillis()
+        if (!flight.isWindowOpen(now)) return
+        _ui.update { it.copy(seatPickerFlightId = flight.id, nowMillis = now) }
+    }
+
+    fun dismissSeatPicker() {
+        _ui.update { it.copy(seatPickerFlightId = null) }
+    }
+
+    /**
+     * Commits the seat chosen in the seat map. If the traveler wasn't checked in yet this *is*
+     * the check-in (issues the boarding assignment); on an issued pass it just moves the seat.
+     * Guarded like [toggleCheckIn]: only honored while the window is OPEN.
+     */
+    fun confirmSeat(seat: String) {
+        val now = System.currentTimeMillis()
+        val preCommit = _ui.value.let { state -> state.flights.firstOrNull { it.id == state.seatPickerFlightId } }
+        _ui.update { state ->
+            val target = state.flights.firstOrNull { it.id == state.seatPickerFlightId }
+                ?: return@update state.copy(seatPickerFlightId = null, nowMillis = now)
+            if (!target.isWindowOpen(now)) {
+                return@update state.copy(seatPickerFlightId = null, nowMillis = now)
+            }
+            val updated = target.copy(
+                seat = seat,
+                boarding = target.boarding ?: target.assignBoarding(now),
+            )
+            state.copy(
+                flights = state.flights.map { if (it.id == updated.id) updated else it },
+                seatPickerFlightId = null,
+                nowMillis = now,
+            )
+        }
+        saveRecords()
+        preCommit?.let(::recordSeatSignals)
+    }
+
+    /**
+     * Learning seam for the seat map (plan A4): committing a seat that *performs* the check-in
+     * records the full check-in signals (seatChosen + flightFlown); a seat change on an issued
+     * pass records just the newly chosen seat. Consent gating happens inside
+     * [TravelProfileStore.record]; demo seed flights never record (plan R10e).
+     */
+    private fun recordSeatSignals(preCommit: CheckInFlight) {
+        if (preCommit.id in CheckinRepository.seedFlightIds) return
+        val target = _ui.value.flights.firstOrNull { it.id == preCommit.id } ?: return
+        when {
+            !preCommit.isCheckedIn && target.isCheckedIn -> recordCheckInSignals(preToggle = preCommit)
+            target.isCheckedIn && target.seat != preCommit.seat -> viewModelScope.launch {
+                travelProfileStore.record(
+                    TravelSignal(
+                        kind = TravelSignal.Kind.SEAT_CHOSEN,
+                        value = target.seat,
+                        attributes = mapOf(
+                            TravelSignal.Attr.AIRLINE to target.airline,
+                            TravelSignal.Attr.CABIN_HINT to target.cabin.name.lowercase(Locale.US),
+                        ),
+                        timestamp = Instant.now().toString(),
+                        source = "checkin",
+                    ),
+                )
+            }
+        }
+    }
+
     private fun CheckInFlight.applyRecord(record: PersistedCheckIn?): CheckInFlight =
         if (record == null) this
         else copy(
+            seat = record.seat.ifBlank { seat },
             boarding = BoardingAssignment(
                 zone = record.zone,
                 position = record.position,
@@ -149,6 +220,7 @@ class CheckinViewModel @Inject constructor(
                     position = it.position,
                     cabinLabel = it.cabinLabel,
                     checkedInAtMillis = it.checkedInAtMillis,
+                    seat = flight.seat,
                 )
             }
         }

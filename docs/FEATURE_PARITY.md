@@ -116,6 +116,57 @@ Hilt, Room, DataStore, Retrofit/OkHttp/Moshi, Coroutines/Flow).
 - **⬜ live-integration TODO:** swap each module's mock repository for its real API as keys
   arrive; add Room persistence + crypto/biometric for the vaults; real Play Billing for Pro.
 
+### Demo mode (investor/field presentations)
+
+- **Demo mode switch** — More → Presentation. Enabling it runs `core.data.demo.DemoSeeder`:
+  wipes `ModuleStateStore`, resets Room trips/expenses to `MockData`, fills profile blanks with
+  the demo persona, and arms a **scripted disruption push** (~25s later, via the now-implemented
+  `DisruptionMonitorWorker` + `core.notifications.JetNotifier`). "Reset demo data" restores the
+  pristine dataset any time.
+- **Check-In grew an interactive seat map** (`feature.checkin.SeatMap` + `SeatMapSheet`):
+  check-in flows through seat selection, issued passes support "Change seat" while the window is
+  open, and the chosen seat persists (`PersistedCheckIn.seat`).
+- **Disruption Monitor posts a real notification** at its "Traveler notified" timeline step
+  (permission requested in-context on the screen; silently skipped when denied). Every alert on
+  the disruption channel — delay, gate change, cancellation, rebooking — plays the bundled cabin
+  **"fasten seatbelt" chime** (`res/raw/cabin_chime.wav`, wired as the channel sound in
+  `JetNotifier`; channel id bumped to `disruption_alerts_v2` because Android locks a channel's
+  sound at creation).
+- **Demo mode is also flippable from the Home header** — an alpha-only `DEMO` chip
+  (`feature.home.HomeScreen`) mirrors the More → Presentation switch (same `DemoSeeder` path,
+  same in-context notification-permission request) so a presenter never leaves the dashboard.
+- **Departure Optimizer grew the navigation + conditions loop:** a **Navigate** button opens
+  **in-app route guidance** (`feature.departureoptimizer.RouteMapSheet`) — the seeded
+  Summerlin → LAS route on a real Google Map when `MAPS_API_KEY` is set (code-drawn map
+  otherwise, and as the cover until tiles load), with a simulated "Start drive" run that moves
+  the position marker while remaining time/distance/ETA count down. The live estimate also rolls
+  **weather conditions** (label + °F + risk) shown in the LIVE CONDITIONS card next to traffic
+  and TSA.
+- **📌 Product rule — every experience stays in-app.** No feature may hand the user off to an
+  external app or browser (no `ACTION_VIEW`/maps/dialer/browser intents); maps, navigation,
+  booking, and export flows all render inside JetSetter Pro. The only exception is the system
+  notification shade, whose taps deep-link back into the app. Audited clean as of this change —
+  keep it that way when porting the remaining modules (rental-car "deep links", ground
+  transport, expense-provider connections must become in-app surfaces).
+- **IRIS gives the departure briefing:** demo-tier replies for "when should I leave / traffic /
+  navigate / weather" are rendered from `DepartureoptimizerRepository`'s **live snapshot** (so a
+  re-rolled drive/TSA/weather can never contradict her; defaults read leave by 5:19 AM, 34-min
+  drive, TSA 22m, clear 74°F), a "When should I leave?" suggestion chip was added, and the live
+  Claude tier covers the same intent through the parity-spec `getDepartureRecommendation` tool
+  (the demo line's `get_departure_briefing` tool was superseded by it in the merge).
+- **Persona consistency:** seed data across Check-In, Travel Wallet, Disruption, Flight Tracker,
+  Home, Departure Optimizer, and the IRIS demo replies all describe the same traveler — DL 1423
+  LAS→ATL, First cabin seat 3A, gate C22, the Atlanta board-meeting trip, $1,812.75 expenses,
+  a 7:00 AM departure with a 5:19 AM leave-by. Keep new seed data on this persona. IRIS demo
+  replies were reworded (presentation-safe, no setup hints) — this deviates from the older iOS
+  copy on purpose; converge iOS onto the new wording.
+- **📌 Merge note (2026-07):** the investor-demo line (`origin/main`, 13 commits) was merged into
+  the iOS-parity stack with the parity stack winning all conflicts. Demo features above were
+  re-ported onto the new stack (DemoSeeder/JetNotifier/seat map/route map kept; the demo line's
+  older IRIS briefing superseded by the `DAILY_BRIEFING` suggestion kind + the
+  `getDepartureRecommendation` tool; Firebase App Distribution kept as a CLI-only CI pipeline —
+  no Firebase runtime or gradle plugin returned to the app).
+
 ---
 
 ## 2. Per-module Android scaffolding convention

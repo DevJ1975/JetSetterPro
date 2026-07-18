@@ -16,6 +16,11 @@ data class HomeUiState(
     val expenseSummary: ExpenseSummary? = null,
     /** Proactive alerts (gate changes, weather…) the tester hasn't dismissed yet. */
     val alerts: List<HomeAlert> = emptyList(),
+    /**
+     * Mirrors [com.jetsetter.pro.core.model.UserPreferences.demoMode]. Drives the alpha-only
+     * DEMO chip in the Home header so demo mode can be flipped without leaving the dashboard.
+     */
+    val demoMode: Boolean = false,
 )
 
 /** Rolled-up spend for the upcoming trip: grand total plus the single biggest category. */

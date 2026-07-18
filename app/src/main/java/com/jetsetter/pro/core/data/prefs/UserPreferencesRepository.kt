@@ -30,6 +30,7 @@ class UserPreferencesRepository @Inject constructor(
         val learnFromReceipts = booleanPreferencesKey("learn_from_receipts")
         val learnFromCheckIns = booleanPreferencesKey("learn_from_check_ins")
         val learnFromTrips = booleanPreferencesKey("learn_from_trips")
+        val demoMode = booleanPreferencesKey("demo_mode")
     }
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -44,6 +45,7 @@ class UserPreferencesRepository @Inject constructor(
             learnFromReceipts = prefs[Keys.learnFromReceipts] ?: true,
             learnFromCheckIns = prefs[Keys.learnFromCheckIns] ?: true,
             learnFromTrips = prefs[Keys.learnFromTrips] ?: true,
+            demoMode = prefs[Keys.demoMode] ?: false,
         )
     }
 
@@ -61,4 +63,5 @@ class UserPreferencesRepository @Inject constructor(
         context.dataStore.edit { it[Keys.learnFromCheckIns] = value }
     suspend fun setLearnFromTrips(value: Boolean) =
         context.dataStore.edit { it[Keys.learnFromTrips] = value }
+    suspend fun setDemoMode(value: Boolean) = context.dataStore.edit { it[Keys.demoMode] = value }
 }

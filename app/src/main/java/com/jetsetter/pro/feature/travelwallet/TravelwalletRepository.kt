@@ -137,9 +137,11 @@ class TravelWalletRepository @Inject constructor(
             id = "wallet-boarding",
             type = TravelWalletPassType.BOARDING_PASS,
             title = "DL 1423 · LAS → ATL",
-            subtitle = "Delta Air Lines · Main Cabin",
+            // Matches the Check-In module's DL 1423 (First cabin, seat 3A, Zone 1) so the wallet
+            // pass and the issued boarding pass never disagree during a demo.
+            subtitle = "Delta Air Lines · First",
             keyDetailLabel = "Seat",
-            keyDetailValue = "12A · Zone 1",
+            keyDetailValue = "3A · Zone 1",
             date = "Jul 14, 2026 · 7:00 AM",
             isFavorite = true,
         ),

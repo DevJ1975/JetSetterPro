@@ -46,8 +46,9 @@ class ModuleStateStore @Inject constructor(
 
     /**
      * Wipes every key — the account-deletion path
-     * ([com.jetsetter.pro.core.backend.CloudBackend.deleteAccount]). Also clears seed/consent
-     * flags, so the app returns to fresh-install behavior on next launch.
+     * ([com.jetsetter.pro.core.backend.CloudBackend.deleteAccount]) and demo-mode reset
+     * (`core.data.demo.DemoSeeder`). Also clears seed/consent flags, so the app returns to
+     * fresh-install (or pristine demo) behavior on next launch.
      */
     suspend fun clearAll() {
         context.moduleStateDataStore.edit { it.clear() }

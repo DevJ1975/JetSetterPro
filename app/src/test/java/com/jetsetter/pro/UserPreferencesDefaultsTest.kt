@@ -21,6 +21,7 @@ class UserPreferencesDefaultsTest {
         assertEquals(ThemePreference.DARK, prefs.theme)
         assertEquals("", prefs.displayName)
         assertEquals("", prefs.homeAirport)
+        assertFalse("Demo mode is opt-in, never the default", prefs.demoMode)
     }
 
     @Test

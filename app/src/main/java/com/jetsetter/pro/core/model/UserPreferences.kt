@@ -18,6 +18,11 @@ data class UserPreferences(
     val learnFromCheckIns: Boolean = true,
     /** Gates flightFlown/tripCompleted/placeVisited signals (only meaningful while [learningEnabled]). */
     val learnFromTrips: Boolean = true,
+    /**
+     * Presentation mode: the app runs on the curated demo traveler's data. Enabling it re-seeds
+     * every module to a pristine, self-consistent dataset (see `core.data.demo.DemoSeeder`).
+     */
+    val demoMode: Boolean = false,
 )
 
 enum class ThemePreference { SYSTEM, LIGHT, DARK }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jetsetter.pro.core.ai.NanoModelManager
 import com.jetsetter.pro.core.backend.CloudBackend
+import com.jetsetter.pro.core.data.demo.DemoSeeder
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.data.prefs.UserPreferencesRepository
 import com.jetsetter.pro.core.model.ThemePreference
@@ -37,6 +38,7 @@ class SettingsViewModel @Inject constructor(
     private val stateStore: ModuleStateStore,
     private val nanoModelManager: NanoModelManager,
     private val backend: CloudBackend,
+    private val demoSeeder: DemoSeeder,
 ) : ViewModel() {
 
     val preferences: StateFlow<UserPreferences> =
@@ -94,6 +96,14 @@ class SettingsViewModel @Inject constructor(
     fun setDisplayName(value: String) = viewModelScope.launch { prefsRepository.setDisplayName(value) }
     fun setHomeAirport(value: String) = viewModelScope.launch { prefsRepository.setHomeAirport(value) }
     fun setTtsEnabled(value: Boolean) = viewModelScope.launch { prefsRepository.setTtsEnabled(value) }
+
+    /** Demo mode on/off. Enabling re-seeds everything and arms the scripted disruption push. */
+    fun setDemoMode(enabled: Boolean) = viewModelScope.launch {
+        if (enabled) demoSeeder.enableDemoMode() else demoSeeder.disableDemoMode()
+    }
+
+    /** Restores the pristine demo dataset without touching the demo-mode switch. */
+    fun resetDemoData() = viewModelScope.launch { demoSeeder.resetDemoData() }
 
     /** User-initiated download of the on-device Gemini Nano model (the only thing that starts it). */
     fun downloadOnDeviceModel() = viewModelScope.launch { nanoModelManager.requestDownload() }

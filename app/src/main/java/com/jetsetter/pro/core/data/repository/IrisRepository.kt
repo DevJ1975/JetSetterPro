@@ -13,6 +13,7 @@ import com.jetsetter.pro.core.ai.OnDeviceAi
 import com.jetsetter.pro.core.rag.AiTier
 import com.jetsetter.pro.core.rag.ContextAssembler
 import com.jetsetter.pro.core.secrets.Secrets
+import com.jetsetter.pro.feature.departureoptimizer.DepartureoptimizerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -53,6 +54,7 @@ class IrisRepository @Inject constructor(
     private val onDevice: OnDeviceAi,
     private val contextAssembler: ContextAssembler,
     private val promptBuilder: IrisSystemPromptBuilder,
+    private val departureRepository: DepartureoptimizerRepository,
 ) {
     /** R2 session state: compacts resent history on system-prompt change or char overflow. */
     private val session = ConversationSession()
@@ -67,6 +69,10 @@ class IrisRepository @Inject constructor(
         val lastUserText = history.lastOrNull { it.role == "user" }?.text.orEmpty()
         val key = Secrets.anthropic
 
+        // The Departure Optimizer's live snapshot, so demo replies about leave-by/traffic/weather
+        // always agree with what that screen currently shows (including after a re-roll).
+        val departureEstimate = runCatching { departureRepository.load() }.getOrNull()
+
         val route = IrisRouting.decide(
             onDeviceAvailable = runCatching { onDevice.isAvailable() }.getOrDefault(false),
             claudeConfigured = Secrets.isConfigured(key),
@@ -74,7 +80,7 @@ class IrisRepository @Inject constructor(
         )
 
         if (route == IrisRoute.DEMO) {
-            emit(IrisPersona.demoResponse(lastUserText))
+            emit(IrisPersona.demoResponse(lastUserText, departureEstimate))
             return@flow
         }
 
@@ -100,7 +106,7 @@ class IrisRepository @Inject constructor(
             .map { textMessage(if (it.role == "model") "assistant" else "user", it.text) }
             .toMutableList()
         if (conversation.isEmpty()) {
-            emit(IrisPersona.demoResponse(lastUserText))
+            emit(IrisPersona.demoResponse(lastUserText, departureEstimate))
             return@flow
         }
 
@@ -154,7 +160,7 @@ class IrisRepository @Inject constructor(
             }
         }.onFailure {
             // Only substitute a demo reply if nothing streamed yet; a mid-stream drop keeps the partial.
-            if (!streamedAny) emit(IrisPersona.demoResponse(lastUserText))
+            if (!streamedAny) emit(IrisPersona.demoResponse(lastUserText, departureEstimate))
         }
     }.flowOn(Dispatchers.IO)
 

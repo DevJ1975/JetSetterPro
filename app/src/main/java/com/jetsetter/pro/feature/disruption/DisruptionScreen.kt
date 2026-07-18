@@ -68,6 +68,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jetsetter.pro.ui.components.AccentTag
 import com.jetsetter.pro.ui.components.JetCard
+import com.jetsetter.pro.ui.components.RequestNotificationPermissionOnce
 import com.jetsetter.pro.ui.theme.JetSetterTheme
 import com.jetsetter.pro.ui.theme.JetTheme
 import java.util.Locale
@@ -79,6 +80,8 @@ import java.util.Locale
 @Composable
 fun DisruptionScreen(viewModel: DisruptionViewModel = hiltViewModel()) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    // The "Traveler notified" timeline step posts a real push — ask for permission in context.
+    RequestNotificationPermissionOnce()
     DisruptionContent(
         state = state,
         onSelectAlternative = viewModel::selectAlternative,
