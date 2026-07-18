@@ -22,15 +22,21 @@ Snapshot after Phase 1 iOS-parity landed (`08eed32`) + nav/voice fixes (`7a64958
 6. **Before store promotion:** privacy-policy URL + data-safety declarations (location, camera,
    mic, calendar per manifest); restrict the Maps key (release + debug SHA-1s) after first upload.
 
-## Claude — in flight (Phase 2, code-side; doesn't need the above)
+## Claude — Phase 2 DONE (commit `a4674e1`, 297 tests green)
 
-- B4 CloudBackend seam (`trips/expenses/travelSignals/walletItems/packingLists/disruptionEvents`
-  + auth surface) with SupabaseBackend impl; repos swap to the seam; contract test vs fake.
-- B5 `supabase/migrations/0002_signals_wallet_disruptions.sql` (file only — applying blocked on #3/#4),
-  new sync classes, EncryptedSessionManager, email sign-in/link, `delete-account` edge function
-  (file only — deploy blocked on #4), account section in More/settings.
-- B6 FlightAware live wiring behind isConfigured + DisruptionMonitorWorker (HiltWorker + app
-  Configuration.Provider), travel-signal cloud sync hookup, walletItems producer (R8).
+CloudBackend seam + SupabaseBackend, migration 0002 file, three new sync classes,
+EncryptedSessionManager, email sign-in/link, delete-account edge function file, Account settings
+section, FlightAware live wiring + DisruptionMonitorWorker, wallet/disruption/signal cloud
+write-through. All cloud paths stay silently best-effort until items #3/#4 above are done, then:
+apply `supabase/migrations/0002_*.sql` + deploy `supabase/functions/delete-account` (Claude can do
+both via MCP once re-authed).
+
+## Claude — next up (Phase 3, needs keys as they arrive)
+
+- Keyed APIs behind isConfigured: Expedia Rapid (+ hotel photos per BOOKING_IMAGERY_PLAN),
+  Uber, Lyft, Google Vision OCR fallback, SITA WorldTracer, rental deep links.
+- Booking imagery implementation (`core/images/`, airline SVG pack, Pexels, SIPP car assets).
+- Receipt-scan UI consuming `core/ocr`.
 
 ## Step-by-step: Google Play (do these in order)
 
