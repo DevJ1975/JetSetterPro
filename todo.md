@@ -31,12 +31,21 @@ write-through. All cloud paths stay silently best-effort until items #3/#4 above
 apply `supabase/migrations/0002_*.sql` + deploy `supabase/functions/delete-account` (Claude can do
 both via MCP once re-authed).
 
-## Claude — next up (Phase 3, needs keys as they arrive)
+## Claude — Phase 3 DONE (commit `c87d522`, 370 tests green)
 
-- Keyed APIs behind isConfigured: Expedia Rapid (+ hotel photos per BOOKING_IMAGERY_PLAN),
-  Uber, Lyft, Google Vision OCR fallback, SITA WorldTracer, rental deep links.
-- Booking imagery implementation (`core/images/`, airline SVG pack, Pexels, SIPP car assets).
+All keyed services implemented and dormant behind isConfigured: Expedia Rapid (token provider +
+availability → booking), Uber + Lyft (live-first ground-transport merge), Google Vision (OCR
+fallback), SITA WorldTracer (live bag refresh), rental deep links (offer-card buttons). Each
+activates automatically when its key lands in `local.properties`. **Every code phase of the
+approved parity plan is now complete.**
+
+## Claude — awaiting green light
+
+- Booking imagery implementation (`core/images/`, airline SVG pack, Pexels, SIPP car assets) —
+  plan in docs/BOOKING_IMAGERY_PLAN.md, needs your OK + free API_PEXELS key.
 - Receipt-scan UI consuming `core/ocr`.
+- Apply migration 0002 + deploy delete-account fn (the moment MCP is re-authed / toggle is on).
+- Fresh AAB + Play upload the moment you say "keystore done" / "app created".
 
 ## Step-by-step: Google Play (do these in order)
 
