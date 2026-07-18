@@ -32,6 +32,60 @@ Snapshot after Phase 1 iOS-parity landed (`08eed32`) + nav/voice fixes (`7a64958
 - B6 FlightAware live wiring behind isConfigured + DisruptionMonitorWorker (HiltWorker + app
   Configuration.Provider), travel-signal cloud sync hookup, walletItems producer (R8).
 
+## Step-by-step: Google Play (do these in order)
+
+### A. Regenerate the release keystore (BEFORE anything touches Play)
+1. Open Terminal in the repo root (`/Users/jamiljones/AndroidStudioProjects/JSP`).
+2. Move the placeholder keystore aside: `mv jetsetter-release.jks jetsetter-release.jks.old`
+3. Generate the new one (you'll be prompted for a NEW strong password — create it in your
+   password manager first, then paste it):
+   ```bash
+   KEYTOOL="/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/keytool"
+   "$KEYTOOL" -genkeypair -keystore jetsetter-release.jks -alias jetsetter \
+     -keyalg RSA -keysize 4096 -validity 10950 \
+     -dname "CN=JetSetter Pro, O=Trainovations, C=US"
+   ```
+4. Edit `keystore.properties` (repo root, git-ignored) — set `storePassword=` and `keyPassword=`
+   to the new password (keep `storeFile=jetsetter-release.jks`, `keyAlias=jetsetter`).
+5. Back up BOTH files off this machine: copy `jetsetter-release.jks` + the password to your
+   password manager / secure cloud storage. Losing them permanently blocks app updates.
+6. Tell Claude "keystore done" → a fresh signed AAB gets built and verified for you.
+
+### B. Create the app in Play Console (one-time, UI-only)
+1. Go to https://play.google.com/console and sign in as jamil@trainovations.com.
+2. All apps → **Create app**: App name "JetSetter Pro", default language English (US),
+   type **App**, **Free**, accept declarations → Create app.
+3. You'll land on the app dashboard. Ignore the long setup checklist for now — internal testing
+   doesn't need most of it.
+
+### C. Upload the first AAB (registers the package name — one-time, UI-only)
+1. Left nav: **Test and release → Testing → Internal testing** → **Create new release**.
+2. If prompted about signing, accept **Play App Signing** (default — Google holds the app
+   signing key; your keystore becomes the upload key, which is recoverable if ever lost).
+3. Upload `app/build/outputs/bundle/release/app-release.aab` (the one built AFTER step A —
+   ask Claude if unsure which is current).
+4. Release name auto-fills (`1 (0.1.0)`); release notes: anything, e.g. "First internal build."
+5. **Next → Save and publish** (or Save, then Review release → Start rollout to Internal testing).
+6. Testers tab → create an email list with your own address → copy the opt-in link to install.
+
+### D. Confirm API control (so Claude can do all future releases)
+1. Left nav: **Users and permissions** — verify `play-publisher@jetsetter-pro.iam.gserviceaccount.com`
+   is listed with app access to JetSetter Pro and "Release to testing tracks" (Admin also fine).
+2. Tell Claude "app created" → verification runs:
+   `~/.config/jsp/play-api.sh POST applications/com.trainovate.jetsetterpro/edits` should now
+   return an edit id instead of 404. From here on, uploads/promotions happen from this session.
+
+### E. Before promoting beyond internal testing (can wait)
+1. **Policy → App content**: fill Data safety (declares location, camera, microphone, calendar —
+   all in the manifest), Content rating questionnaire, target audience, and a **privacy policy URL**.
+2. **Grow → Store presence → Main store listing**: short/full description, screenshots
+   (phone min. 2), 512×512 icon, 1024×500 feature graphic.
+3. In Google Cloud (console.cloud.google.com, project `jetsetter-pro`): APIs & Services →
+   Credentials → "JetSetter Pro Android Maps (EAS)" key → Application restrictions → Android apps →
+   add `com.trainovate.jetsetterpro` + the NEW keystore SHA-1 (from step A; Claude can print it)
+   and `com.trainovate.jetsetterpro.debug` + the debug SHA-1. Delete the unused "API key 4" /
+   "New API key 4" keys while there.
+
 ## Later (Phase 3 + parked)
 
 - Keyed third-party APIs behind isConfigured: Expedia, Uber, Lyft, Google Vision OCR fallback,
