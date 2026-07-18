@@ -93,13 +93,15 @@ class VoiceInput(private val context: Context) {
             )
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, onPartial != null)
             if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // The recognizer service reads these extras as Int — a Long value makes it throw
+            // ClassCastException internally and fall back to 0, so convert at the boundary.
             putExtra(
                 RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
-                completeSilenceMillis,
+                completeSilenceMillis.toInt(),
             )
             putExtra(
                 RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
-                completeSilenceMillis,
+                completeSilenceMillis.toInt(),
             )
         }
 

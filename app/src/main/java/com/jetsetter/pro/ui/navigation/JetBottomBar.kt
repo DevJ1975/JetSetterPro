@@ -28,9 +28,13 @@ fun JetBottomBar(navController: NavHostController) {
                     if (currentRoute != destination.route) {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         navController.navigate(destination.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            // Deterministic tab roots: no save/restore of per-tab stacks, so a
+                            // feature screen left stacked on a tab (e.g. Luggage Tracker) can
+                            // never be resurrected by a later tab tap — tapping a tab always
+                            // lands on that tab's root screen.
+                            popUpTo(navController.graph.startDestinationId) { saveState = false }
                             launchSingleTop = true
-                            restoreState = true
+                            restoreState = false
                         }
                     }
                 },

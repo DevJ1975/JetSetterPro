@@ -58,6 +58,14 @@ class VoiceLoopController(
     private var retryCount = 0
     private var focusRequest: AudioFocusRequest? = null
 
+    /**
+     * Session generation, bumped whenever teardown begins ([stop]/[release]). Async callbacks
+     * (posted TTS onDone, recognizer result/retry) capture the generation they were created
+     * under and no-op if it has moved on — a stale callback must never reopen the mic (start a
+     * second recognizer session) after teardown has begun, e.g. during ViewModel clearing.
+     */
+    private var generation = 0
+
     /** Whether speech recognition is available at all — gate the hands-free toggle on this. */
     val isRecognitionAvailable: Boolean get() = voiceInput.isAvailable
 
@@ -71,6 +79,7 @@ class VoiceLoopController(
 
     /** Leave the loop from any state: mic down, speech stopped, focus + routing released. */
     fun stop() {
+        generation++ // invalidate any in-flight callbacks before tearing anything down
         apply(VoiceLoopEvent.StopTapped)
         _partial.value = null
         voiceInput.destroy()
@@ -96,9 +105,12 @@ class VoiceLoopController(
             return
         }
         requestFocus()
+        val gen = generation
         voiceOutput.speak(text) {
             // UtteranceProgressListener callbacks arrive off-main; SpeechRecognizer needs main.
-            mainHandler.post { onSpeechFinished() }
+            // Stale-generation onDone (loop stopped/released while speaking) must not resume
+            // listening — that would open a recognizer session after teardown.
+            mainHandler.post { if (gen == generation) onSpeechFinished() }
         }
     }
 
@@ -135,16 +147,17 @@ class VoiceLoopController(
     }
 
     private fun beginListening() {
+        val gen = generation // stale sessions (teardown began after this call) must not act
         _partial.value = null
         voiceInput.start(
             onResult = { phrase ->
-                if (_state.value != VoiceLoopState.LISTENING) return@start
+                if (gen != generation || _state.value != VoiceLoopState.LISTENING) return@start
                 _partial.value = null
                 apply(VoiceLoopEvent.FinalTranscript)
                 onFinalTranscript(phrase)
             },
             onError = {
-                if (_state.value != VoiceLoopState.LISTENING) return@start
+                if (gen != generation || _state.value != VoiceLoopState.LISTENING) return@start
                 val next = apply(VoiceLoopEvent.RecognitionError)
                 if (next == VoiceLoopState.LISTENING) {
                     beginListening() // the machine granted one silent retry
