@@ -1,39 +1,67 @@
 package com.jetsetter.pro.feature.booking
 
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.data.remote.expedia.ExpediaService
+import com.jetsetter.pro.core.data.remote.getOrNull
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import java.time.LocalDate
+import java.time.Year
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Backs the Hotel Booking screen with realistic in-memory sample data plus lightweight,
- * tester-mutable preferences (favorites / selection / sort) persisted via [ModuleStateStore].
- *
- * Mock-first: there is no network, OTA integration, or remote persistence here — a real build
- * would swap [searchHotels] for a hotel search API (e.g. Booking.com / Expedia). The shape (a
- * summary plus a list of results) is kept stable so the live source can drop in later.
+ * Backs the Hotel Booking screen. Live-when-configured (plan B7): [searchHotels] shops the demo
+ * stay window through Expedia Rapid when the OAuth2 pair is present and maps priced properties
+ * onto [HotelBookingItem]; unconfigured keys, a fetch failure, or an unpriceable payload all fall
+ * back to the realistic in-memory sample data below — the screen never surfaces an error state
+ * it can't act on. Lightweight, tester-mutable preferences (favorites / selection / sort)
+ * persist via [ModuleStateStore] either way.
  */
 @Singleton
 class BookingRepository @Inject constructor(
     private val stateStore: ModuleStateStore,
+    private val expedia: ExpediaService,
 ) {
     private val prefsAdapter = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
         .adapter(BookingPreferences::class.java)
 
+    // The demo stay window — one source of truth for the header display AND the live query
+    // dates, so the numbers on screen always describe what was actually shopped.
+    private val checkInDate: LocalDate = LocalDate.of(Year.now().value, 7, 14)
+    private val checkOutDate: LocalDate = checkInDate.plusDays(NIGHTS.toLong())
+
     /** The active search context shown in the header. `nights` drives every total on screen. */
     fun searchSummary(): HotelSearchSummary = HotelSearchSummary(
         destination = "Lisbon, Portugal",
-        checkIn = "Jul 14",
-        checkOut = "Jul 17",
-        nights = 3,
-        guests = 2,
+        checkIn = checkInDate.format(HEADER_DATE),
+        checkOut = checkOutDate.format(HEADER_DATE),
+        nights = NIGHTS,
+        guests = GUESTS,
     )
 
-    /** Returns the mock search results. `suspend` so the live API call drops in unchanged. */
-    suspend fun searchHotels(): List<HotelBookingItem> = hotels
+    /**
+     * Live-first search (plan B7): when Expedia Rapid is configured, shop the demo stay window
+     * for [LIVE_PROPERTY_IDS] and map every priced property onto the booking model; anything
+     * short of at least one mappable result serves the mock list instead.
+     */
+    suspend fun searchHotels(): List<HotelBookingItem> {
+        if (expedia.isConfigured) {
+            val live = expedia.availability(
+                checkin = checkInDate.toString(),
+                checkout = checkOutDate.toString(),
+                propertyIds = LIVE_PROPERTY_IDS,
+                occupancy = GUESTS.toString(),
+                currency = LIVE_CURRENCY,
+            ).getOrNull()
+                ?.mapNotNull { it.toHotelBookingItem(nights = NIGHTS, expectedCurrency = LIVE_CURRENCY) }
+                ?.takeIf { it.isNotEmpty() }
+            if (live != null) return live
+        }
+        return hotels
+    }
 
     /** Loads persisted booking preferences, falling back to defaults on first run / bad data. */
     suspend fun loadPreferences(): BookingPreferences =
