@@ -3,14 +3,16 @@ package com.jetsetter.pro.core.ai
 /**
  * Folds IRIS's persona + RAG context + recent history into a single prompt string for Gemini Nano.
  *
- * Nano (ML Kit GenAI Prompt API) has **no system role** and a small (~4k-token) input window, so we
- * flatten everything into one prompt. The system/RAG block is kept whole (it's the grounding), then
- * the most recent turns are included newest-first until the character budget is hit — older turns are
- * dropped rather than the grounding. ~4 chars ≈ 1 token, so ~14k chars ≈ ~3.5k tokens of input.
+ * Nano (ML Kit GenAI Prompt API) has **no system role**, so we flatten everything into one prompt.
+ * Folding applies to HISTORY ONLY: the system header (persona + dynamic sections + RAG block) is
+ * kept whole — it's the grounding — and the most recent turns are included newest-first until the
+ * character budget is hit; older turns are dropped, never the header. ~4 chars ≈ 1 token, so
+ * ~24k chars ≈ ~6k tokens of input — sized (R2) so the full spec persona plus its dynamic
+ * sections (≤ ~16k chars, see [IrisSystemPromptBuilder]) always fits with room for recent turns.
  */
 object PromptFolder {
 
-    fun fold(system: String, history: List<AiMessage>, maxInputChars: Int = 14_000): String {
+    fun fold(system: String, history: List<AiMessage>, maxInputChars: Int = 24_000): String {
         val header = system.trim()
         val budget = (maxInputChars - header.length - RESERVE).coerceAtLeast(0)
 

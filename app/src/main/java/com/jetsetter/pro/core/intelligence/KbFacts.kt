@@ -6,9 +6,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Resolved, non-personal KB snippets for the next trip's destination, passed into the pure
- * [ProactiveEngine] so it can anticipate needs without doing any I/O itself. All fields are PUBLIC
- * knowledge (visa/entry/packing/loyalty), so a KbFacts may also inform cloud-tier answers.
+ * Resolved, non-personal KB snippets for the next trip's destination, assembled by the Home
+ * suggestion inputs and folded into the pure [IrisSuggestionEngine]'s visa/weather bodies (plan
+ * R10b) so the engine does no I/O itself. All fields are PUBLIC knowledge
+ * (visa/entry/packing/loyalty), so a KbFacts may also inform cloud-tier answers.
  */
 data class KbFacts(
     val destination: String? = null,

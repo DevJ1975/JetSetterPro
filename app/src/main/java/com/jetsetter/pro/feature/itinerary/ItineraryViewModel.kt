@@ -54,7 +54,7 @@ class ItineraryViewModel @Inject constructor(
 
     /**
      * Builds a [Trip] from the sheet inputs and persists it via the repository (Room +
-     * Firestore mirror). A blank name is ignored so we never create an unnamed trip; the
+     * Supabase mirror). A blank name is ignored so we never create an unnamed trip; the
      * remaining fields fall back to sensible placeholders. Closes the sheet on success.
      */
     fun addTrip(name: String, destination: String, startDate: String, endDate: String) {
@@ -73,7 +73,7 @@ class ItineraryViewModel @Inject constructor(
         }
     }
 
-    /** Deletes a trip by id (also removes it from the Firestore mirror when signed in). */
+    /** Deletes a trip by id (also removes it from the Supabase mirror when signed in). */
     fun delete(id: String) {
         viewModelScope.launch { tripRepository.delete(id) }
     }

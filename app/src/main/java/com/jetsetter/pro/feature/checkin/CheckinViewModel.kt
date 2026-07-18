@@ -3,6 +3,8 @@ package com.jetsetter.pro.feature.checkin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.intelligence.TravelProfileStore
+import com.jetsetter.pro.core.intelligence.TravelSignal
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -14,12 +16,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
 class CheckinViewModel @Inject constructor(
     private val repository: CheckinRepository,
     private val stateStore: ModuleStateStore,
+    private val travelProfileStore: TravelProfileStore,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(CheckinUiState(isLoading = true))
@@ -77,6 +82,44 @@ class CheckinViewModel @Inject constructor(
             )
         }
         saveRecords()
+        recordCheckInSignals(preToggle = flight)
+    }
+
+    /**
+     * Learning seam (plan A4): a successful check-in emits seatChosen + flightFlown signals so the
+     * travel profile learns real seat/airline behavior. Consent gating happens inside
+     * [TravelProfileStore.record]; demo seed flights never record (plan R10e).
+     */
+    private fun recordCheckInSignals(preToggle: CheckInFlight) {
+        if (preToggle.id in CheckinRepository.seedFlightIds) return
+        val target = _ui.value.flights.firstOrNull { it.id == preToggle.id } ?: return
+        val checkedInNow = !preToggle.isCheckedIn && target.isCheckedIn
+        if (!checkedInNow) return
+        val timestamp = Instant.now().toString()
+        val ident = target.flightNumber.replace(" ", "").uppercase(Locale.US)
+        viewModelScope.launch {
+            travelProfileStore.record(
+                TravelSignal(
+                    kind = TravelSignal.Kind.SEAT_CHOSEN,
+                    value = target.seat,
+                    attributes = mapOf(
+                        TravelSignal.Attr.AIRLINE to target.airline,
+                        TravelSignal.Attr.CABIN_HINT to target.cabin.name.lowercase(Locale.US),
+                    ),
+                    timestamp = timestamp,
+                    source = "checkin",
+                ),
+            )
+            travelProfileStore.record(
+                TravelSignal(
+                    kind = TravelSignal.Kind.FLIGHT_FLOWN,
+                    value = ident,
+                    attributes = mapOf(TravelSignal.Attr.AIRLINE to target.airline),
+                    timestamp = timestamp,
+                    source = "checkin",
+                ),
+            )
+        }
     }
 
     private fun CheckInFlight.applyRecord(record: PersistedCheckIn?): CheckInFlight =

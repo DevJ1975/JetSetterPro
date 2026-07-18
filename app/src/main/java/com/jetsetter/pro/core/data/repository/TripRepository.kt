@@ -8,6 +8,7 @@ import com.jetsetter.pro.core.data.mock.MockData
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
 import com.jetsetter.pro.core.di.ApplicationScope
 import com.jetsetter.pro.core.model.Trip
+import com.jetsetter.pro.core.model.TripQueries
 import com.jetsetter.pro.core.sync.SupabaseTripSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -15,6 +16,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,6 +54,18 @@ class TripRepository @Inject constructor(
 
     fun observeTrips(): Flow<List<Trip>> =
         tripDao.observeAll().map { entities -> entities.map { it.toDomain() } }
+
+    /**
+     * Today's trip (date range contains today) or the next upcoming one — spec §2.5's "active
+     * trip". Re-evaluates whenever Room's trip table changes; the clock is sampled per emission,
+     * which is fine because any staleness heals on the next table change.
+     */
+    fun activeTrip(): Flow<Trip?> =
+        observeTrips().map { trips -> TripQueries.activeTrip(trips, LocalDate.now()) }
+
+    /** The next future flight across all trips (first itinerary title matching a flight ident). */
+    fun nextFlight(): Flow<TripQueries.NextFlight?> =
+        observeTrips().map { trips -> TripQueries.nextFlight(trips, Instant.now()) }
 
     /**
      * Seeds [MockData.trips] exactly once per install. Gated behind a persisted flag so that an

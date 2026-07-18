@@ -8,8 +8,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 /** A decoded item from the Anthropic streaming response. */
@@ -33,21 +33,22 @@ sealed interface ClaudeEvent {
  * fragments and surfaced as [ClaudeEvent.ToolUse]; the turn ends with [ClaudeEvent.Done] carrying
  * the stop reason. A non-2xx response or an `error` SSE event throws so the caller can fall back.
  *
- * Privacy: callers pass only the conversation and the static [IrisPersona.SYSTEM_PROMPT] — never
- * the on-device learned profile (that must not leave the device, see the parity spec).
+ * Privacy: per the parity spec, the system prompt may carry the traveler's stored preferences,
+ * persona, learned-profile summary, and live context (see [IrisSystemPromptBuilder]) — Anthropic
+ * is a sanctioned AI tier for personalization. The invariant that remains: preference/profile data
+ * never goes to third-party DATA APIs (FlightAware, Open-Meteo, FX, …), which receive only IATA
+ * codes, coordinates, currency codes, and flight idents.
  */
 @Singleton
-class ClaudeClient @Inject constructor() {
+class ClaudeClient @Inject constructor(
+    @Named("sseHttp") sseHttp: OkHttpClient,
+) {
 
-    // Dedicated client: no read timeout so the SSE stream isn't cut mid-response; a call timeout
-    // still bounds the whole exchange. Kept separate from the FlightAware OkHttpClient so its
-    // x-apikey interceptor never touches Anthropic requests.
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .callTimeout(120, TimeUnit.SECONDS)
-        .build()
+    // Streaming client from NetworkModule ("sseHttp"): no read timeout so the SSE stream isn't
+    // cut mid-response; a call timeout still bounds the whole exchange; the GET RetryInterceptor
+    // is stripped so a streamed POST is never replayed. Kept separate from the FlightAware client
+    // so its x-apikey interceptor never touches Anthropic requests.
+    private val http = sseHttp
 
     /**
      * Streams one assistant turn. [messages] is the Anthropic-format message array (each element a

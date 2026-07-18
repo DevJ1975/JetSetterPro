@@ -40,6 +40,10 @@ mlkitGenaiPrompt = "1.0.0-beta2"
 # on 16 KB devices/AVDs. 0.10.26+ is 16 KB-aligned (arm64-v8a + armeabi-v7a only — no x86*,
 # so x86 emulators lose the embedder and RAG degrades gracefully).
 mediapipeTasksText = "0.10.26.1"
+# ML Kit Text Recognition v2 (Latin script, bundled model) — on-device receipt OCR (spec §2.3/§3.1).
+# Unlike genai-prompt this model ships inside the APK, so it runs on every device with no
+# AICore/Play-services download gate. Google Vision is the Phase 3 cloud fallback (see core/ocr).
+mlkitTextRecognition = "16.0.1"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
@@ -87,6 +91,7 @@ androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx"
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
 mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai-prompt", version.ref = "mlkitGenaiPrompt" }
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 mediapipe-tasks-text = { group = "com.google.mediapipe", name = "tasks-text", version.ref = "mediapipeTasksText" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }

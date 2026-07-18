@@ -39,4 +39,8 @@ class ModuleStateStore @Inject constructor(
 
     suspend fun read(key: String): String? =
         context.moduleStateDataStore.data.first()[stringPreferencesKey(key)]
+
+    suspend fun remove(key: String) {
+        context.moduleStateDataStore.edit { it.remove(stringPreferencesKey(key)) }
+    }
 }

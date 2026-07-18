@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Hands-free voice loop (spec §1.8): audio focus/routing + optional Bluetooth headset
+         routing. BLUETOOTH_CONNECT is a runtime permission on API 31+; the loop degrades to
+         speaker routing when it isn't granted. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!-- These permissions imply hardware features; mark them optional so the app stays
          installable on devices (including ChromeOS / tablets) that lack them. -->

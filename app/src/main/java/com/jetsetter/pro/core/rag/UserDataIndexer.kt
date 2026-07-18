@@ -11,7 +11,7 @@ import javax.inject.Singleton
 /**
  * Indexes the user's own trips and expenses into the KB as `PERSONAL` chunks so the on-device IRIS
  * tier can retrieve them as grounding. This is the RAG half of "IRIS learns the user" — combined
- * with [com.jetsetter.pro.core.intelligence.UserMemory] preference learning. No model is trained.
+ * with [com.jetsetter.pro.core.intelligence.TravelProfileStore] signal learning. No model is trained.
  *
  * On most devices the embedder is unavailable (no on-device model), so [reindex] is a cheap no-op
  * and personal data is never embedded. PERSONAL chunks are reachable only on the ON_DEVICE tier

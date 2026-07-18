@@ -19,7 +19,7 @@ import javax.inject.Singleton
  * The URL and publishable ("anon") key come from BuildConfig via [Secrets] (set SUPABASE_URL
  * and SUPABASE_ANON_KEY in local.properties / the environment). When either is missing the
  * provider returns null and callers fall back to mock/local data — the same "not configured"
- * doctrine the rest of the app follows (see [Secrets.isConfigured] and FirebaseModule).
+ * doctrine the rest of the app follows (see [Secrets.isConfigured]).
  *
  * Postgrest covers table reads/writes; Auth supplies the per-user session that RLS policies
  * key off; Realtime delivers live cross-device updates (postgres changes). Add Storage the same

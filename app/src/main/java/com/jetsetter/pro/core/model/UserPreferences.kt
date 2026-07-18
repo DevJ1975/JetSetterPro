@@ -10,6 +10,14 @@ data class UserPreferences(
     val hasCompletedOnboarding: Boolean = false,
     /** Opt-in: speak IRIS replies aloud (TTS). Off by default. */
     val ttsEnabled: Boolean = false,
+    /** Master learning consent (spec §1.6): off = no travel signal is ever recorded. */
+    val learningEnabled: Boolean = true,
+    /** Gates receiptScanned/expenseLogged signals (only meaningful while [learningEnabled]). */
+    val learnFromReceipts: Boolean = true,
+    /** Gates seatChosen signals (only meaningful while [learningEnabled]). */
+    val learnFromCheckIns: Boolean = true,
+    /** Gates flightFlown/tripCompleted/placeVisited signals (only meaningful while [learningEnabled]). */
+    val learnFromTrips: Boolean = true,
 )
 
 enum class ThemePreference { SYSTEM, LIGHT, DARK }

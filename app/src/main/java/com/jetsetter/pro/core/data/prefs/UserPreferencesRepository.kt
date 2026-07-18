@@ -26,6 +26,10 @@ class UserPreferencesRepository @Inject constructor(
         val theme = stringPreferencesKey("theme")
         val hasCompletedOnboarding = booleanPreferencesKey("has_completed_onboarding")
         val ttsEnabled = booleanPreferencesKey("tts_enabled")
+        val learningEnabled = booleanPreferencesKey("learning_enabled")
+        val learnFromReceipts = booleanPreferencesKey("learn_from_receipts")
+        val learnFromCheckIns = booleanPreferencesKey("learn_from_check_ins")
+        val learnFromTrips = booleanPreferencesKey("learn_from_trips")
     }
 
     val preferences: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -36,6 +40,10 @@ class UserPreferencesRepository @Inject constructor(
                 .getOrDefault(ThemePreference.DARK),
             hasCompletedOnboarding = prefs[Keys.hasCompletedOnboarding] ?: false,
             ttsEnabled = prefs[Keys.ttsEnabled] ?: false,
+            learningEnabled = prefs[Keys.learningEnabled] ?: true,
+            learnFromReceipts = prefs[Keys.learnFromReceipts] ?: true,
+            learnFromCheckIns = prefs[Keys.learnFromCheckIns] ?: true,
+            learnFromTrips = prefs[Keys.learnFromTrips] ?: true,
         )
     }
 
@@ -45,4 +53,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setHasCompletedOnboarding(value: Boolean) =
         context.dataStore.edit { it[Keys.hasCompletedOnboarding] = value }
     suspend fun setTtsEnabled(value: Boolean) = context.dataStore.edit { it[Keys.ttsEnabled] = value }
+    suspend fun setLearningEnabled(value: Boolean) =
+        context.dataStore.edit { it[Keys.learningEnabled] = value }
+    suspend fun setLearnFromReceipts(value: Boolean) =
+        context.dataStore.edit { it[Keys.learnFromReceipts] = value }
+    suspend fun setLearnFromCheckIns(value: Boolean) =
+        context.dataStore.edit { it[Keys.learnFromCheckIns] = value }
+    suspend fun setLearnFromTrips(value: Boolean) =
+        context.dataStore.edit { it[Keys.learnFromTrips] = value }
 }

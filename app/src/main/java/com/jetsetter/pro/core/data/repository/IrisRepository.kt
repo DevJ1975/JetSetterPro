@@ -3,7 +3,11 @@ package com.jetsetter.pro.core.data.repository
 import com.jetsetter.pro.core.ai.AiMessage
 import com.jetsetter.pro.core.ai.ClaudeClient
 import com.jetsetter.pro.core.ai.ClaudeEvent
+import com.jetsetter.pro.core.ai.ConversationSession
 import com.jetsetter.pro.core.ai.IrisPersona
+import com.jetsetter.pro.core.ai.IrisRoute
+import com.jetsetter.pro.core.ai.IrisRouting
+import com.jetsetter.pro.core.ai.IrisSystemPromptBuilder
 import com.jetsetter.pro.core.ai.IrisToolDispatcher
 import com.jetsetter.pro.core.ai.OnDeviceAi
 import com.jetsetter.pro.core.rag.AiTier
@@ -21,12 +25,22 @@ import javax.inject.Singleton
 /**
  * Backs the IRIS assistant (Intelligent Routing & Itinerary Specialist).
  *
- * Tiering mirrors iOS: on-device (Phase C — Gemini Nano, seam wired via [OnDeviceAi]) →
- * **Anthropic Claude** (`claude-sonnet-4-6`, streaming, with tool use) → canned demo. The
- * on-device tier serves plain chat only and (with the default no-op binding) reports unavailable,
- * so routing currently falls through to it. When the `API_ANTHROPIC` key is set IRIS streams from
- * Claude and may call [IrisToolDispatcher] tools to actually act on the app (add a trip, log an
- * expense, summarize spend); otherwise it falls back to [IrisPersona.demoResponse].
+ * Tier routing (R1, pinned by [IrisRouting]) mirrors iOS: **on-device first** whenever Gemini Nano
+ * is available — regardless of whether the Anthropic key is set — then Anthropic Claude
+ * (`claude-sonnet-4-6`, streaming, with tool use) when configured, then the canned demo. One
+ * exception: the on-device tier is plain chat only (the ML Kit Prompt API has no tool calling), so
+ * a turn that plausibly needs a tool (per the [com.jetsetter.pro.core.ai.IrisToolIntent] heuristic)
+ * diverts to Claude when it is configured.
+ *
+ * Both tiers share the same personalized system prompt — [IrisSystemPromptBuilder] (base persona +
+ * preferences + traveler persona + learned profile + live context) plus the turn's RAG block from
+ * [ContextAssembler]. Per the parity spec, personalization flows to the cloud AI tier too; the
+ * privacy invariant that remains is that profile data never reaches third-party DATA APIs.
+ *
+ * Session contract (R2): the Claude HTTP tier is stateless (full message-array resend each turn —
+ * same as iOS's remote fallback), so [ConversationSession] compacts the history when the stable
+ * system header changes or the history outgrows ~4k est. tokens: last 6 turns kept, older turns
+ * replaced by one synthetic summary pair.
  *
  * The tool loop (see [stream]): stream a turn → if it ends with `tool_use`, echo the assistant's
  * `tool_use` blocks, run the tools, feed the `tool_result`s back, and stream again — until the
@@ -38,7 +52,11 @@ class IrisRepository @Inject constructor(
     private val tools: IrisToolDispatcher,
     private val onDevice: OnDeviceAi,
     private val contextAssembler: ContextAssembler,
+    private val promptBuilder: IrisSystemPromptBuilder,
 ) {
+    /** R2 session state: compacts resent history on system-prompt change or char overflow. */
+    private val session = ConversationSession()
+
     /**
      * Streams IRIS's reply token-by-token. [history] is the full conversation; the last entry is
      * the new user message. Roles map from the app's convention ("user"/"model") to Anthropic's
@@ -47,38 +65,44 @@ class IrisRepository @Inject constructor(
      */
     fun stream(history: List<AiMessage>): Flow<String> = flow {
         val lastUserText = history.lastOrNull { it.role == "user" }?.text.orEmpty()
-
         val key = Secrets.anthropic
-        if (!Secrets.isConfigured(key)) {
+
+        val route = IrisRouting.decide(
+            onDeviceAvailable = runCatching { onDevice.isAvailable() }.getOrDefault(false),
+            claudeConfigured = Secrets.isConfigured(key),
+            lastUserText = lastUserText,
+        )
+
+        if (route == IrisRoute.DEMO) {
             emit(IrisPersona.demoResponse(lastUserText))
             return@flow
         }
 
-        val conversation = history
-            .dropWhile { it.role != "user" }
+        // Tier 1 — on-device (Gemini Nano). Plain chat only: tool-intent turns were already routed
+        // to Claude above. Nano folds prompt + history itself (PromptFolder), so no session
+        // compaction is needed here.
+        if (route == IrisRoute.ON_DEVICE) {
+            val ctx = contextAssembler.assemble(lastUserText, AiTier.ON_DEVICE)
+            val system = promptBuilder.build() + ctx.systemBlock
+            onDevice.stream(system, history).collect { emit(it) }
+            return@flow
+        }
+
+        // Tier 2 — Claude. The system prompt = stable personalized header + this turn's RAG block.
+        // Only the header feeds the session hash: the RAG block varies with every query, and
+        // hashing it would force a compaction each turn.
+        val systemHeader = promptBuilder.build()
+        val cloudCtx = contextAssembler.assemble(lastUserText, AiTier.CLOUD)
+        val systemForClaude = systemHeader + cloudCtx.systemBlock
+
+        val prepared = session.prepareHistory(history.dropWhile { it.role != "user" }, systemHeader)
+        val conversation = prepared
             .map { textMessage(if (it.role == "model") "assistant" else "user", it.text) }
             .toMutableList()
         if (conversation.isEmpty()) {
             emit(IrisPersona.demoResponse(lastUserText))
             return@flow
         }
-
-        // Tier 1 — on-device (Phase C, Gemini Nano). Plain chat only: tools are not supported
-        // on-device, so any turn needing tool use falls through to the Claude loop below. The
-        // default binding reports unavailable, so this branch is a no-op until a real backend
-        // is supplied (see OnDeviceAi). RAG context here may include PERSONAL grounding — it
-        // never leaves the device.
-        if (onDevice.isAvailable()) {
-            val ctx = contextAssembler.assemble(lastUserText, AiTier.ON_DEVICE)
-            val system = IrisPersona.SYSTEM_PROMPT + ctx.systemBlock
-            onDevice.stream(system, history).collect { emit(it) }
-            return@flow
-        }
-
-        // Cloud tier grounding: PUBLIC knowledge only (the assembler refuses to include anything
-        // PERSONAL for CLOUD). Computed once and reused on every tool round so it persists.
-        val cloudCtx = contextAssembler.assemble(lastUserText, AiTier.CLOUD)
-        val systemForClaude = IrisPersona.SYSTEM_PROMPT + cloudCtx.systemBlock
 
         var streamedAny = false
         runCatching {

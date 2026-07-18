@@ -104,6 +104,7 @@ fun HomeScreen(
         onOpenFeature = onOpenFeature,
         onOpenExpenses = onOpenExpenses,
         onDismissAlert = viewModel::dismissAlert,
+        onAlertClick = viewModel::onAlertClick,
     )
 }
 
@@ -115,6 +116,7 @@ private fun HomeContent(
     onOpenFeature: (String) -> Unit = {},
     onOpenExpenses: () -> Unit = {},
     onDismissAlert: (String) -> Unit = {},
+    onAlertClick: (HomeAlert) -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -148,7 +150,7 @@ private fun HomeContent(
     ) {
         HomeHeader()
         if (state.alerts.isNotEmpty()) {
-            AlertsCard(alerts = state.alerts, onDismiss = onDismissAlert)
+            AlertsCard(alerts = state.alerts, onDismiss = onDismissAlert, onClick = onAlertClick)
         }
         NextFlightCard(state.nextFlight)
         FlightMapCard(flight = state.nextFlight, onClick = onOpenFlightTracker)
@@ -332,7 +334,11 @@ private fun ExpenseSummaryCard(summary: ExpenseSummary, onClick: () -> Unit) {
 
 /** Proactive, dismissible heads-ups (gate changes, weather…) surfaced at the top of the dashboard. */
 @Composable
-private fun AlertsCard(alerts: List<HomeAlert>, onDismiss: (String) -> Unit) {
+private fun AlertsCard(
+    alerts: List<HomeAlert>,
+    onDismiss: (String) -> Unit,
+    onClick: (HomeAlert) -> Unit = {},
+) {
     val colors = JetTheme.colors
     val typography = JetTheme.typography
     JetCard(modifier = Modifier.fillMaxWidth()) {
@@ -342,14 +348,14 @@ private fun AlertsCard(alerts: List<HomeAlert>, onDismiss: (String) -> Unit) {
         }
         alerts.forEach { alert ->
             Spacer(Modifier.height(12.dp))
-            AlertRow(alert = alert, onDismiss = { onDismiss(alert.id) })
+            AlertRow(alert = alert, onDismiss = { onDismiss(alert.id) }, onClick = { onClick(alert) })
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AlertRow(alert: HomeAlert, onDismiss: () -> Unit) {
+private fun AlertRow(alert: HomeAlert, onDismiss: () -> Unit, onClick: () -> Unit = {}) {
     val colors = JetTheme.colors
     val typography = JetTheme.typography
     val haptics = LocalHapticFeedback.current
@@ -361,13 +367,25 @@ private fun AlertRow(alert: HomeAlert, onDismiss: () -> Unit) {
         AlertSeverity.WARNING -> Icons.Filled.Warning
         AlertSeverity.INFO -> Icons.Filled.Info
     }
+    // The body is tappable only when the alert carries an IRIS deep-link prompt.
+    val clickableBody = if (alert.promptToIris != null) {
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            }
+            .semantics { role = Role.Button }
+    } else {
+        Modifier
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).then(clickableBody)) {
             Text(alert.title, style = typography.bodyMedium, color = colors.textPrimary)
             Text(alert.message, style = typography.caption, color = colors.textSecondary)
         }

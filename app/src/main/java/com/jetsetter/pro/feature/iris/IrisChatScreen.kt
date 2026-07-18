@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,16 +33,28 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.FlightLand
+import androidx.compose.material.icons.filled.FlightTakeoff
+import androidx.compose.material.icons.filled.HeadsetMic
+import androidx.compose.material.icons.filled.HowToReg
+import androidx.compose.material.icons.filled.Luggage
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
-import com.jetsetter.pro.core.voice.VoiceOutput
+import com.jetsetter.pro.core.ai.IrisPendingAction
+import com.jetsetter.pro.core.voice.VoiceLoopState
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -71,6 +85,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jetsetter.pro.core.voice.VoiceInput
 import com.jetsetter.pro.ui.components.AccentTag
+import com.jetsetter.pro.ui.components.JetCard
 import com.jetsetter.pro.ui.components.PremiumTextField
 import com.jetsetter.pro.ui.theme.JetSetterTheme
 import com.jetsetter.pro.ui.theme.JetTheme
@@ -86,6 +101,9 @@ fun IrisChatScreen(viewModel: IrisChatViewModel = hiltViewModel()) {
         state = state,
         onSend = viewModel::send,
         onSetTtsEnabled = viewModel::setTtsEnabled,
+        onSetHandsFree = viewModel::setHandsFree,
+        onConfirmPending = viewModel::confirmPendingAction,
+        onCancelPending = viewModel::cancelPendingAction,
     )
 }
 
@@ -98,6 +116,9 @@ private fun IrisChatContent(
     state: IrisUiState,
     onSend: (String) -> Unit,
     onSetTtsEnabled: (Boolean) -> Unit = {},
+    onSetHandsFree: (Boolean) -> Unit = {},
+    onConfirmPending: () -> Unit = {},
+    onCancelPending: () -> Unit = {},
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -105,23 +126,40 @@ private fun IrisChatContent(
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    // Speak IRIS replies aloud when the user has opted in. One engine per screen, released on dispose.
-    val voiceOutput = remember { VoiceOutput(context) }
-    DisposableEffect(Unit) { onDispose { voiceOutput.shutdown() } }
-    // Don't read aloud whatever's already on screen at first composition (e.g. the greeting).
-    var spokenThrough by remember { mutableStateOf(state.messages.size) }
-    LaunchedEffect(state.isThinking) {
-        if (state.isThinking) {
-            voiceOutput.stop()
-        } else if (state.ttsEnabled) {
-            val last = state.messages.lastOrNull()
-            if (state.messages.size > spokenThrough && last != null && !last.fromUser && last.text.isNotBlank()) {
-                voiceOutput.speak(last.text)
-            }
-            spokenThrough = state.messages.size
+    // NOTE: all speech (TTS + hands-free loop) is owned by the ViewModel's VoiceLoopController
+    // (R9) — this screen only renders state and forwards toggles.
+
+    // Hands-free needs RECORD_AUDIO; BLUETOOTH_CONNECT (API 31+) is requested alongside but
+    // optional — the loop degrades to speaker routing when it's denied.
+    val handsFreePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        val micGranted = grants[Manifest.permission.RECORD_AUDIO]
+            ?: (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED)
+        if (micGranted) {
+            onSetHandsFree(true)
+        } else {
+            Toast.makeText(context, "Microphone permission denied", Toast.LENGTH_SHORT).show()
         }
     }
-    LaunchedEffect(state.ttsEnabled) { if (!state.ttsEnabled) voiceOutput.stop() }
+
+    fun enableHandsFree() {
+        val missing = buildList {
+            val micGranted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!micGranted) add(Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val btGranted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.BLUETOOTH_CONNECT,
+                ) == PackageManager.PERMISSION_GRANTED
+                if (!btGranted) add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+        }
+        if (missing.isEmpty()) onSetHandsFree(true)
+        else handsFreePermissionLauncher.launch(missing.toTypedArray())
+    }
 
     // Auto-scroll to the newest message (or the typing bubble) whenever the list grows.
     LaunchedEffect(state.messages.size, state.isThinking) {
@@ -157,6 +195,29 @@ private fun IrisChatContent(
             Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = colors.accent)
             Text("IRIS", style = JetTheme.typography.pageTitle, color = colors.textPrimary)
             Spacer(Modifier.weight(1f))
+            // Small phase chip while the hands-free loop is active (spec §1.8).
+            if (state.handsFree) {
+                val phaseLabel = when (state.voiceState) {
+                    VoiceLoopState.LISTENING -> "Listening…"
+                    VoiceLoopState.THINKING -> "Thinking…"
+                    VoiceLoopState.SPEAKING -> "Speaking…"
+                    VoiceLoopState.IDLE -> null
+                }
+                phaseLabel?.let { AccentTag(text = it) }
+            }
+            IconButton(onClick = {
+                if (state.handsFree) onSetHandsFree(false) else enableHandsFree()
+            }) {
+                Icon(
+                    imageVector = Icons.Filled.HeadsetMic,
+                    contentDescription = if (state.handsFree) {
+                        "Stop hands-free conversation"
+                    } else {
+                        "Start hands-free conversation"
+                    },
+                    tint = if (state.handsFree) colors.accent else colors.textSecondary,
+                )
+            }
             IconButton(onClick = { onSetTtsEnabled(!state.ttsEnabled) }) {
                 Icon(
                     imageVector = if (state.ttsEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
@@ -189,6 +250,14 @@ private fun IrisChatContent(
             }
         }
 
+        state.pendingAction?.let { pending ->
+            PendingActionCard(
+                action = pending,
+                onConfirm = onConfirmPending,
+                onCancel = onCancelPending,
+            )
+        }
+
         SuggestionRow(
             suggestions = state.suggestions,
             enabled = !state.isThinking,
@@ -203,6 +272,11 @@ private fun IrisChatContent(
                 input = ""
             },
             enabled = !state.isThinking,
+            // Ghost the live partial hypothesis into the (empty) field while the loop listens.
+            ghostText = state.partialTranscript
+                ?.takeIf { state.handsFree && state.voiceState == VoiceLoopState.LISTENING },
+            // The loop owns the mic while hands-free — hide push-to-talk contention.
+            pushToTalkEnabled = !state.handsFree,
         )
     }
 }
@@ -263,6 +337,91 @@ private fun TypingIndicator(modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/**
+ * Confirm-before-commit card (spec §1.4): shows the one staged action's icon + summary with
+ * Cancel/Confirm, swapping the buttons for a spinner while the commit runs.
+ */
+@Composable
+private fun PendingActionCard(
+    action: PendingActionUi,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val colors = JetTheme.colors
+    val spacing = JetTheme.spacing
+    val haptics = LocalHapticFeedback.current
+    JetCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = spacing.medium, vertical = spacing.xsmall),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.small),
+        ) {
+            Icon(action.kind.icon(), contentDescription = null, tint = colors.accent)
+            Column(modifier = Modifier.weight(1f)) {
+                Text("CONFIRM ACTION", style = JetTheme.typography.label, color = colors.textSecondary)
+                Text(action.summary, style = JetTheme.typography.bodyMedium, color = colors.textPrimary)
+            }
+        }
+        Spacer(Modifier.height(spacing.small))
+        if (action.isCommitting) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = colors.accent,
+                    strokeWidth = 2.5.dp,
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(spacing.small),
+            ) {
+                Button(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onCancel()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.surfaceElevated,
+                        contentColor = colors.textPrimary,
+                    ),
+                ) {
+                    Text("Cancel", style = JetTheme.typography.cardTitle)
+                }
+                Button(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onConfirm()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Text("Confirm", style = JetTheme.typography.cardTitle)
+                }
+            }
+        }
+    }
+}
+
+/** Icon per staged-action kind, keyed off the shared iOS-parity enum. */
+private fun IrisPendingAction.Kind.icon(): ImageVector = when (this) {
+    IrisPendingAction.Kind.LOG_EXPENSE -> Icons.Filled.AttachMoney
+    IrisPendingAction.Kind.ADD_TRIP -> Icons.Filled.FlightTakeoff
+    IrisPendingAction.Kind.CHECK_IN -> Icons.Filled.HowToReg
+    IrisPendingAction.Kind.TRACK_FLIGHT -> Icons.Filled.FlightLand
+    IrisPendingAction.Kind.GENERATE_PACKING_LIST -> Icons.Filled.Luggage
+    IrisPendingAction.Kind.SUBMIT_EXPENSES -> Icons.Filled.Upload
 }
 
 /** Friendly placeholder shown before any conversation exists. */
@@ -330,6 +489,8 @@ private fun InputBar(
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     enabled: Boolean,
+    ghostText: String? = null,
+    pushToTalkEnabled: Boolean = true,
 ) {
     val colors = JetTheme.colors
     val haptics = LocalHapticFeedback.current
@@ -379,7 +540,8 @@ private fun InputBar(
         PremiumTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = "Ask IRIS…",
+            // Ghosted partial transcript while the hands-free loop listens (spec §1.8).
+            placeholder = ghostText ?: "Ask IRIS…",
             modifier = Modifier.weight(1f),
         )
         IconButton(
@@ -400,7 +562,7 @@ private fun InputBar(
                     micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }
             },
-            enabled = enabled,
+            enabled = enabled && pushToTalkEnabled,
         ) {
             Icon(
                 Icons.Filled.Mic,
@@ -439,6 +601,27 @@ private fun IrisChatContentPreview() {
                     ChatMessage("You're at gate C22 for DL 1423 LAS → ATL, on time.", fromUser = false),
                 ),
                 isThinking = true,
+            ),
+            onSend = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "IRIS – pending action")
+@Composable
+private fun IrisPendingActionPreview() {
+    JetSetterTheme {
+        IrisChatContent(
+            state = IrisUiState(
+                messages = listOf(
+                    ChatMessage("Log a $40 dinner at Nobu", fromUser = true),
+                    ChatMessage("I've prepared that expense — confirm below and I'll log it.", fromUser = false),
+                ),
+                pendingAction = PendingActionUi(
+                    id = "preview",
+                    kind = IrisPendingAction.Kind.LOG_EXPENSE,
+                    summary = "Log expense: USD 40.00 at Nobu (food)",
+                ),
             ),
             onSend = {},
         )

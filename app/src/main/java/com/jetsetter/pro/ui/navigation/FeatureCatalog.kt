@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Hotel
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Luggage
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SmartToy
@@ -45,7 +47,9 @@ import com.jetsetter.pro.feature.groundtransport.GroundTransportScreen
 import com.jetsetter.pro.feature.identityvault.IdentityVaultScreen
 import com.jetsetter.pro.feature.inflight.InFlightScreen
 import com.jetsetter.pro.feature.intelligence.IntelligenceScreen
+import com.jetsetter.pro.feature.irismemory.IrisMemoryScreen
 import com.jetsetter.pro.feature.localexperience.LocalExperienceScreen
+import com.jetsetter.pro.feature.lovedones.LovedonesScreen
 import com.jetsetter.pro.feature.loyaltyvault.LoyaltyVaultScreen
 import com.jetsetter.pro.feature.luggagetracker.LuggageTrackerScreen
 import com.jetsetter.pro.feature.offlinekit.OfflineKitScreen
@@ -80,6 +84,7 @@ val featureCatalog: List<FeatureEntry> = listOf(
     FeatureEntry("disruption", "Disruption Monitor", "Travel day", Icons.Filled.Warning) { DisruptionScreen() },
     FeatureEntry("inflight", "In-Flight", "Travel day", Icons.Filled.Flight) { InFlightScreen() },
     FeatureEntry("groundtransport", "Ground Transport", "Travel day", Icons.Filled.DirectionsCar) { GroundTransportScreen() },
+    FeatureEntry("lovedones", "Loved Ones", "Travel day", Icons.Filled.FavoriteBorder) { LovedonesScreen() },
     // Plan
     FeatureEntry("booking", "Hotel Booking", "Plan", Icons.Filled.Hotel) { BookingScreen() },
     FeatureEntry("rentalcar", "Rental Cars", "Plan", Icons.Filled.DirectionsCar) { RentalCarScreen() },
@@ -102,6 +107,7 @@ val featureCatalog: List<FeatureEntry> = listOf(
     FeatureEntry("intelligence", "Travel Intelligence", "Trip", Icons.Filled.Insights) { IntelligenceScreen() },
     FeatureEntry("offlinekit", "Offline Kit", "Trip", Icons.Filled.CloudDownload) { OfflineKitScreen() },
     // Account
+    FeatureEntry("irismemory", "IRIS Memory & Privacy", "Account", Icons.Filled.Psychology) { IrisMemoryScreen() },
     FeatureEntry("expenseexport", "Expense Export", "Account", Icons.Filled.Upload) { ExpenseExportScreen() },
     FeatureEntry("subscription", "JetSetter Pro", "Account", Icons.Filled.Star) { SubscriptionScreen() },
 )

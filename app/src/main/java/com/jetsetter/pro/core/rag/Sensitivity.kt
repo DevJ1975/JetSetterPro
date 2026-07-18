@@ -4,12 +4,16 @@ package com.jetsetter.pro.core.rag
  * Privacy classification of a knowledge chunk. This is the spine of IRIS's RAG privacy model:
  *
  *  - [PUBLIC]   — general, non-personal travel knowledge (visa rules, baggage limits, etiquette …).
- *                 Shippable in the app, regenerable, and safe to send to any tier including Claude.
+ *                 Shippable in the app and regenerable.
  *  - [PERSONAL] — anything derived from this user (their trips, expenses, learned preferences).
- *                 On-device tiers only — must never enter a Claude/cloud request.
  *
- * Persisted to Room as the [wire] string. The tier→sensitivity gate is enforced in
- * [ContextAssembler].
+ * Contract (parity spec): BOTH sensitivities may ground BOTH IRIS tiers — on-device Gemini Nano
+ * and Anthropic Claude are each sanctioned AI processors for personalization (see
+ * [ContextAssembler]). The invariant that remains: PERSONAL data is never sent to third-party
+ * DATA APIs (FlightAware, Open-Meteo, FX, SITA, …) — those requests carry only IATA codes,
+ * coordinates, currency codes, and flight idents.
+ *
+ * Persisted to Room as the [wire] string.
  */
 enum class Sensitivity(val wire: String) {
     PUBLIC("PUBLIC"),

@@ -32,8 +32,10 @@ data class HomeAlert(
     val title: String,
     val message: String,
     val severity: AlertSeverity,
-    /** Stable kind (e.g. "packing", "visa-entry") for learned accept/dismiss tracking. */
+    /** Stable suggestion kind ([IrisSuggestionKind.name]) for learned accept/dismiss tracking. */
     val category: String = "",
+    /** Natural-language request deep-linked into IRIS chat when the alert is tapped, or null. */
+    val promptToIris: String? = null,
 )
 
 enum class AlertSeverity { WARNING, INFO }

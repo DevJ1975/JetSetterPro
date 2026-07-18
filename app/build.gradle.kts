@@ -184,7 +184,7 @@ dependencies {
 
     // Async, images, background work
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.kotlinx.coroutines.play.services)   // Task<T>.await() for Firebase
+    implementation(libs.kotlinx.coroutines.play.services)   // Task<T>.await() for ML Kit (OCR, GenAI)
     implementation(libs.coil.compose)
     implementation(libs.androidx.work.runtime.ktx)
 
@@ -198,9 +198,16 @@ dependencies {
     // Both are device-gated; IRIS falls back to the Claude tier / RAG-off where unsupported.
     implementation(libs.mlkit.genai.prompt)
     implementation(libs.mediapipe.tasks.text)
+    // ML Kit Text Recognition — on-device receipt OCR (bundled Latin model, no device gate).
+    // core/ocr/ReceiptOcr recognizes the bitmap; ReceiptParser turns the raw text into
+    // merchant/amount/currency/date prefills for expense entry (spec §2.3/§3.1).
+    implementation(libs.mlkit.text.recognition)
 
     // Test
     testImplementation(libs.junit)
+    // Real org.json on the unit-test classpath — the android.jar stubs throw ("not mocked"),
+    // and the IRIS tool dispatcher's contract (schema + execute inputs) is JSONObject-shaped.
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

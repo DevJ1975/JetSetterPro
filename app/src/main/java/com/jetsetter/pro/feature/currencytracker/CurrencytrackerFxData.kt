@@ -1,28 +1,24 @@
 package com.jetsetter.pro.feature.currencytracker
 
 /**
- * Bundled, OFFLINE foreign-exchange reference table — the real data backing the Currency feature.
+ * Bundled, OFFLINE foreign-exchange reference table — the *fallback* tier of the Currency feature.
  *
  * Every rate is a static, in-code USD-anchored figure ([CurrencyRate.ratePerUsd] == how many units
  * of the currency one US dollar buys, so USD itself is exactly `1.0`). These are realistic *recent
- * approximate* values, NOT a live quote: there is no network call and no API key. Converting between
- * any two currencies is done by going through USD as a cross rate (`target / base`), which the
- * UI-state already derives, so any pair stays self-consistent.
+ * approximate* values, not a live quote. Converting between any two currencies is done by going
+ * through USD as a cross rate (`target / base`), which the UI-state already derives, so any pair
+ * stays self-consistent.
  *
- * Live FX is a future drop-in: when [API_FX_KEY] is wired to a real key (e.g. Open Exchange Rates /
- * ECB), the repository can swap [table] for a fetched snapshot without any UI change. It is
- * intentionally **unset** (`null`) in this offline build.
+ * Live FX (plan B7) is served by `CurrencytrackerRepository` via the keyless Frankfurter API
+ * (ECB provenance, no key required): fetched rates are merged **over** this table per-code, so it
+ * still supplies the curated roster plus each currency's name/flag/symbol — and remains the whole
+ * story when no fetch has ever succeeded. `dailyChangePct` stays illustrative either way (the
+ * `latest` endpoint carries no previous-day delta).
  */
 internal object CurrencytrackerFxData {
 
     /** Reference currency every rate is anchored to (ratePerUsd == 1.0). */
     const val REFERENCE_CURRENCY: String = "USD"
-
-    /**
-     * Live-FX API key placeholder. **Unset** in this offline build — the rates below are bundled
-     * approximations. Drop a real key here (and add the fetch call in the repository) to go live.
-     */
-    val API_FX_KEY: String? = null
 
     /** Short caption made visible in the UI so testers know these are offline/approximate figures. */
     const val APPROXIMATE_LABEL: String = "Offline · approx."

@@ -3,6 +3,8 @@ package com.jetsetter.pro.feature.traveljournal
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jetsetter.pro.core.data.prefs.ModuleStateStore
+import com.jetsetter.pro.core.intelligence.TravelProfileStore
+import com.jetsetter.pro.core.intelligence.TravelSignal
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -12,12 +14,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
 class TraveljournalViewModel @Inject constructor(
     private val repository: TraveljournalRepository,
     private val stateStore: ModuleStateStore,
+    private val travelProfileStore: TravelProfileStore,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(TraveljournalUiState(isLoading = true))
@@ -88,6 +92,21 @@ class TraveljournalViewModel @Inject constructor(
         }
         // Persist the full current entries list so it survives app restart.
         persistEntries(_ui.value.entries)
+        // Learning seam (plan A4, R10g): a journal entry with a location is a placeVisited signal —
+        // the profile's frequent-cities aspect learns from it. Only user-composed entries pass
+        // through here (seeds arrive via loadEntries), and blank locations record nothing.
+        if (entry.location.isNotBlank()) {
+            viewModelScope.launch {
+                travelProfileStore.record(
+                    TravelSignal(
+                        kind = TravelSignal.Kind.PLACE_VISITED,
+                        value = entry.location,
+                        timestamp = Instant.now().toString(),
+                        source = "journal",
+                    ),
+                )
+            }
+        }
     }
 
     /** Removes an entry and persists the result; clears the mood filter if it's now empty. */

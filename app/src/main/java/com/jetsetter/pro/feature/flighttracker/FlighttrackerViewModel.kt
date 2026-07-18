@@ -1,5 +1,6 @@
 package com.jetsetter.pro.feature.flighttracker
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,6 +15,7 @@ import javax.inject.Inject
 @HiltViewModel
 class FlighttrackerViewModel @Inject constructor(
     private val repository: FlighttrackerRepository,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(FlighttrackerUiState(isLoading = true))
@@ -36,6 +38,13 @@ class FlighttrackerViewModel @Inject constructor(
                     recentIdents = recents,
                     totalCount = repository.allFlights().size,
                 )
+            }
+            // IRIS `trackFlight` deep link: the optional ?ident= nav arg pre-fills the search
+            // field and fires the same lookup the IME search action would. Runs after the board
+            // seed so the filtered results replace (not race) the initial full board.
+            savedStateHandle.get<String>("ident")?.takeIf { it.isNotBlank() }?.let { ident ->
+                onQueryChange(ident)
+                onSearch()
             }
         }
     }

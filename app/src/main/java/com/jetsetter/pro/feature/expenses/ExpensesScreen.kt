@@ -74,8 +74,12 @@ import com.jetsetter.pro.ui.components.JetCard
 import com.jetsetter.pro.ui.components.PremiumTextField
 import com.jetsetter.pro.ui.theme.JetSetterTheme
 import com.jetsetter.pro.ui.theme.JetTheme
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.util.Locale
+
+/** Pause in merchant typing before asking the on-device categorizer for a suggestion. */
+private const val SUGGESTION_DEBOUNCE_MS = 500L
 
 /**
  * Stateful entry point: owns the [ExpensesViewModel], collects its [ExpensesUiState]
@@ -84,11 +88,14 @@ import java.util.Locale
 @Composable
 fun ExpensesScreen(viewModel: ExpensesViewModel = hiltViewModel()) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    val suggestedCategory by viewModel.suggestedCategory.collectAsStateWithLifecycle()
     ExpensesContent(
         state = state,
+        suggestedCategory = suggestedCategory,
         onSelectCategory = viewModel::selectCategory,
         onAddExpense = viewModel::addExpense,
         onAddMileage = viewModel::addMileage,
+        onSuggestCategory = viewModel::suggestCategory,
     )
 }
 
@@ -100,9 +107,11 @@ fun ExpensesScreen(viewModel: ExpensesViewModel = hiltViewModel()) {
 @Composable
 private fun ExpensesContent(
     state: ExpensesUiState,
+    suggestedCategory: ExpenseCategory?,
     onSelectCategory: (ExpenseCategory?) -> Unit,
     onAddExpense: (amount: Double, merchant: String, category: ExpenseCategory, date: String) -> Unit,
     onAddMileage: (miles: Double, date: String) -> Unit,
+    onSuggestCategory: (merchant: String) -> Unit,
 ) {
     val colors = JetTheme.colors
     val spacing = JetTheme.spacing
@@ -165,6 +174,7 @@ private fun ExpensesContent(
         FloatingActionButton(
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSuggestCategory("") // clear any stale suggestion before the sheet opens
                 showSheet = true
             },
             containerColor = colors.accent,
@@ -183,6 +193,8 @@ private fun ExpensesContent(
             containerColor = colors.surface,
         ) {
             AddExpenseSheet(
+                suggestedCategory = suggestedCategory,
+                onSuggestCategory = onSuggestCategory,
                 onConfirm = { amount, merchant, category, date ->
                     onAddExpense(amount, merchant, category, date)
                     showSheet = false
@@ -410,6 +422,8 @@ private fun ExpenseRow(expense: Expense) {
 
 @Composable
 private fun AddExpenseSheet(
+    suggestedCategory: ExpenseCategory?,
+    onSuggestCategory: (merchant: String) -> Unit,
     onConfirm: (amount: Double, merchant: String, category: ExpenseCategory, date: String) -> Unit,
 ) {
     val colors = JetTheme.colors
@@ -420,6 +434,20 @@ private fun AddExpenseSheet(
     var merchant by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
     var category by remember { mutableStateOf(ExpenseCategory.FOOD) }
+    var categoryPickedByUser by remember { mutableStateOf(false) }
+
+    // Debounced on-device categorization (spec §3.1): re-keyed per keystroke, so only a pause in
+    // typing the merchant reaches the categorizer.
+    LaunchedEffect(merchant) {
+        if (merchant.isBlank()) return@LaunchedEffect
+        delay(SUGGESTION_DEBOUNCE_MS)
+        onSuggestCategory(merchant)
+    }
+
+    // Prefill only: the suggestion moves the selected chip unless the user has already picked one.
+    LaunchedEffect(suggestedCategory) {
+        if (suggestedCategory != null && !categoryPickedByUser) category = suggestedCategory
+    }
 
     val amountValue = amount.toDoubleOrNull()
     val valid = amountValue != null && amountValue > 0.0 && merchant.isNotBlank() && date.isNotBlank()
@@ -460,7 +488,10 @@ private fun AddExpenseSheet(
                 FilterChip(
                     label = entry.label,
                     selected = entry == category,
-                    onClick = { category = entry },
+                    onClick = {
+                        categoryPickedByUser = true
+                        category = entry
+                    },
                 )
             }
         }
@@ -631,9 +662,11 @@ private fun ExpensesContentPreview() {
                     Expense(amount = 1290.00, category = ExpenseCategory.BUSINESS, merchant = "Delta Air Lines", date = "2026-07-10"),
                 ),
             ),
+            suggestedCategory = null,
             onSelectCategory = {},
             onAddExpense = { _, _, _, _ -> },
             onAddMileage = { _, _ -> },
+            onSuggestCategory = {},
         )
     }
 }
